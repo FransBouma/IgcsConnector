@@ -7,7 +7,7 @@
 // (c) Frans 'Otis_Inf' Bouma.
 //
 // All rights reserved.
-// https://github.com/FransBouma/ShaderToggler
+// https://github.com/FransBouma/IgcsConnector
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met :
@@ -34,28 +34,35 @@
 #define IMGUI_DISABLE_INCLUDE_IMCONFIG_H
 #define ImTextureID unsigned long long // Change ImGui texture ID type to that of a 'reshade::api::resource_view' handle
 
+#include "stdafx.h"
 #include <imgui.h>
 #include <iomanip>
 #include <ios>
+#include <Psapi.h>
 #include <reshade.hpp>
 #include <sstream>
 #include <string>
 #include <vector>
 
 #include "CameraToolsData.h"
+#include "ScreenshotController.h"
+#include "ScreenshotSettings.h"
 
 using namespace reshade::api;
 
+// externs for reshade
 extern "C" __declspec(dllexport) const char *NAME = "IGCS Connector";
 extern "C" __declspec(dllexport) const char *DESCRIPTION = "Add-on which allows you to connect Reshade with IGCS built camera tools to exchange data and issue commands.";
 
+// externs for IGCS
 extern "C" __declspec(dllexport) bool connectFromCameraTools();
-extern "C" __declspec(dllexport) LPBYTE getDataToCameraToolsBuffer();
 extern "C" __declspec(dllexport) LPBYTE getDataFromCameraToolsBuffer();
 
-static float g_overlayOpacity = 1.0f;
+
+
 static LPBYTE g_dataFromCameraToolsBuffer = nullptr;		// 8192 bytes buffer
-static LPBYTE g_dataToCameraToolsBuffer = nullptr;			// 8192 bytes buffer 
+static ScreenshotSettings g_screenshotSettings;
+static ScreenshotController g_screenshotController;
 
 
 /// <summary>
@@ -71,19 +78,13 @@ static bool connectFromCameraTools()
 	}
 	// malloc 8K buffers
 	g_dataFromCameraToolsBuffer = (LPBYTE)calloc(8 * 1024, 1);
-	g_dataToCameraToolsBuffer = (LPBYTE)calloc(8 * 1024, 1);
+
+	// connect back to the camera tools
+	g_screenshotController.connectToCameraTools();
+
 	return g_dataFromCameraToolsBuffer!=nullptr;
 }
 
-
-/// <summary>
-/// Gets the pointer to the buffer (8KB) for data from this addon to the camera tools.
-/// </summary>
-/// <returns>valid pointer or nullptr if connectFromCameraTools hasn't been called yet</returns>
-static LPBYTE getDataToCameraToolsBuffer()
-{
-	return g_dataToCameraToolsBuffer;
-}
 
 
 /// <summary>
@@ -98,6 +99,7 @@ static LPBYTE getDataFromCameraToolsBuffer()
 
 static void onReshadePresent(effect_runtime* runtime)
 {
+	g_screenshotController.presentCalled(runtime);
 }
 
 
@@ -129,7 +131,7 @@ static void displaySettings(reshade::api::effect_runtime *runtime)
 	{
 		if(nullptr==g_dataFromCameraToolsBuffer)
 		{
-			ImGui::Text("Camera tools not connected");
+			ImGui::Text("Camera data not available");
 		}
 		else
 		{
@@ -141,9 +143,9 @@ static void displaySettings(reshade::api::effect_runtime *runtime)
 			ImGui::InputText("FoV (degrees)", (char*)fovAsString.c_str(), fovAsString.length(), ImGuiInputTextFlags_ReadOnly);
 			ImGui::InputFloat3("Camera coordinates", cameraData->coordinates, "%.1f", ImGuiInputTextFlags_ReadOnly);
 			ImGui::InputFloat4("Camera look quaternion", cameraData->lookQuaternion, "%.3f", ImGuiInputTextFlags_ReadOnly);
-			ImGui::InputFloat3("Rotation matrix row 1", cameraData->getRotationMatrixRow1().values, "%.3f", ImGuiInputTextFlags_ReadOnly);
-			ImGui::InputFloat3("Rotation matrix row 2", cameraData->getRotationMatrixRow2().values, "%.3f", ImGuiInputTextFlags_ReadOnly);
-			ImGui::InputFloat3("Rotation matrix row 3", cameraData->getRotationMatrixRow3().values, "%.3f", ImGuiInputTextFlags_ReadOnly);
+			ImGui::InputFloat3("Rotation matrix row 1 (forward)", cameraData->getRotationMatrixRow1().values, "%.3f", ImGuiInputTextFlags_ReadOnly);
+			ImGui::InputFloat3("Rotation matrix row 2 (right)", cameraData->getRotationMatrixRow2().values, "%.3f", ImGuiInputTextFlags_ReadOnly);
+			ImGui::InputFloat3("Rotation matrix row 3 (up)", cameraData->getRotationMatrixRow3().values, "%.3f", ImGuiInputTextFlags_ReadOnly);
 			ImGui::InputFloat3("World up vector", cameraData->up, "%.1f", ImGuiInputTextFlags_ReadOnly);
 			ImGui::InputFloat3("World right vector", cameraData->right, "%.1f", ImGuiInputTextFlags_ReadOnly);
 			ImGui::InputFloat3("World forward vector", cameraData->forward, "%.1f", ImGuiInputTextFlags_ReadOnly);
@@ -151,8 +153,31 @@ static void displaySettings(reshade::api::effect_runtime *runtime)
 	}
 	ImGui::Separator();
 
-	if(ImGui::CollapsingHeader("List of Toggle Groups", ImGuiTreeNodeFlags_DefaultOpen))
+	if(ImGui::CollapsingHeader("Screenshot features", ImGuiTreeNodeFlags_DefaultOpen))
 	{
+		if(g_screenshotController.cameraToolsConnected())
+		{
+			ImGui::SliderInt("Number of frames to wait between steps", &g_screenshotSettings.numberOfFramesToWaitBetweenSteps, 1, 100);
+			ImGui::Combo("Multi-screenshot type", &g_screenshotSettings.typeOfScreenshot, "360 degrees panorama\0Horizontal panorama\0Lightfield\0\0");
+			switch (g_screenshotSettings.typeOfScreenshot)
+			{
+			case (int)ScreenshotType::CubemapProjectionPanorama:
+				break;
+			case (int)ScreenshotType::HorizontalPanorama:
+				ImGui::SliderFloat("Total field of view in panorama (in degrees)", &g_screenshotSettings.pano_totalAngleDegrees, 30.0f, 360.0f, "%.1f");
+				ImGui::SliderFloat("Percentage of overlap between shots", &g_screenshotSettings.pano_overlapPercentagePerShot, 0.1f, 99.0f, "%.1f");
+				break;
+			case (int)ScreenshotType::Lightfield:
+				ImGui::SliderFloat("Distance between Lightfield shots", &g_screenshotSettings.lightField_distanceBetweenShots, 0.0f, 5.0f, "%.3f");
+				ImGui::SliderInt("Number of shots to take", &g_screenshotSettings.lightField_numberOfShotsToTake, 0, 60);
+				break;
+				// others: ignore.
+			}
+		}
+		else
+		{
+			ImGui::Text("Camera tools not available");
+		}
 	}
 }
 
@@ -176,10 +201,6 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID)
 		if(nullptr!=g_dataFromCameraToolsBuffer)
 		{
 			free(g_dataFromCameraToolsBuffer);
-		}
-		if(nullptr!=g_dataToCameraToolsBuffer)
-		{
-			free(g_dataToCameraToolsBuffer);
 		}
 		break;
 	}

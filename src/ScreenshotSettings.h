@@ -30,22 +30,17 @@
 // OR TORT(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /////////////////////////////////////////////////////////////////////////
-// stdafx.h : include file for standard system include files,
-// or project specific include files that are used frequently, but
-// are changed infrequently
-//
 
 #pragma once
 
-#include <SDKDDKVer.h>
+#include "stdafx.h"
 
-// Windows Header Files:
-#include <windows.h>
-#include <iostream>
-#include <string>
-#include <tchar.h>
-#include <Psapi.h>
-#include <utility>
-#include <vector>
-
-// TODO: reference additional headers your program requires here
+struct ScreenshotSettings
+{
+	int typeOfScreenshot = 1;			// panorama
+	int numberOfFramesToWaitBetweenSteps = 1;
+	float lightField_distanceBetweenShots = 1.0f;
+	int lightField_numberOfShotsToTake = 45;
+	float pano_totalAngleDegrees = 110.0f;
+	float pano_overlapPercentagePerShot = 80.0f;
+};

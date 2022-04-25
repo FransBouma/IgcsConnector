@@ -7,7 +7,7 @@
 // (c) Frans 'Otis_Inf' Bouma.
 //
 // All rights reserved.
-// https://github.com/FransBouma/ShaderToggler
+// https://github.com/FransBouma/IgcsConnector
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met :
@@ -45,6 +45,7 @@ struct Vec3
 	float y() { return values[1];}
 	float z() { return values[2];}
 };
+
 
 struct CameraToolsData
 {
