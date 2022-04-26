@@ -16,6 +16,18 @@
     <ClInclude Include="ScreenshotSettings.h">
       <Filter>Include</Filter>
     </ClInclude>
+    <ClInclude Include="ConstantsEnums.h">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="OverlayControl.h">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="Utils.h">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="std_image_write.h">
+      <Filter>ExternalCode</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Code">
@@ -27,12 +39,21 @@
     <Filter Include="Misc">
       <UniqueIdentifier>{5aefa35f-236b-4b85-899f-79469769608c}</UniqueIdentifier>
     </Filter>
+    <Filter Include="ExternalCode">
+      <UniqueIdentifier>{8e93d6a9-a83f-4aa0-8d41-0c6b0c653552}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Main.cpp">
       <Filter>Code</Filter>
     </ClCompile>
     <ClCompile Include="ScreenshotController.cpp">
+      <Filter>Code</Filter>
+    </ClCompile>
+    <ClCompile Include="OverlayControl.cpp">
+      <Filter>Code</Filter>
+    </ClCompile>
+    <ClCompile Include="Utils.cpp">
       <Filter>Code</Filter>
     </ClCompile>
   </ItemGroup>

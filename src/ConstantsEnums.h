@@ -30,27 +30,39 @@
 // OR TORT(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /////////////////////////////////////////////////////////////////////////
-
 #pragma once
 
-#include "ConstantsEnums.h"
-#include "stdafx.h"
-#include "ShlObj_core.h"
-
-#pragma comment(lib, "shell32.lib")
-
-struct ScreenshotSettings
+enum class ScreenshotControllerState : int
 {
-	int typeOfScreenshot = (int)ScreenshotType::HorizontalPanorama;
-	int numberOfFramesToWaitBetweenSteps = 1;
-	float lightField_distanceBetweenShots = 1.0f;
-	int lightField_numberOfShotsToTake = 45;
-	float pano_totalAngleDegrees = 110.0f;
-	float pano_overlapPercentagePerShot = 80.0f;
-	char screenshotFolder[_MAX_PATH + 1] = { 0 };
+	Off,
+	InSession,
+	SavingShots,
+	Canceling,
+};
 
-	ScreenshotSettings()
-	{
-		SHGetFolderPathA(nullptr, CSIDL_MYPICTURES, nullptr, SHGFP_TYPE_CURRENT, screenshotFolder);
-	}
+
+enum class ScreenshotType : int
+{
+	CubemapProjectionPanorama = 0,
+	HorizontalPanorama = 1,
+	Lightfield = 2,
+};
+
+
+enum class CubemapProjectionState : int
+{
+	Unknown = 0,
+	Front = 1,
+	Up = 2,
+	Down = 3,
+	Left = 4,
+	Right = 5,
+	Back = 6
+};
+
+enum class ScreenshotFiletype : int
+{
+	Bmp,
+	Jpeg,
+	Png
 };

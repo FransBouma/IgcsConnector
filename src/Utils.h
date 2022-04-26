@@ -1,13 +1,8 @@
-///////////////////////////////////////////////////////////////////////
-//
-// Part of IGCS Connector, an add on for Reshade 5+ which allows you
-// to connect IGCS built camera tools with reshade to exchange data and control
-// from Reshade.
-// 
-// (c) Frans 'Otis_Inf' Bouma.
-//
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Part of Injectable Generic Camera System
+// Copyright(c) 2019, Frans Bouma
 // All rights reserved.
-// https://github.com/FransBouma/IgcsConnector
+// https://github.com/FransBouma/InjectableGenericCameraSystem
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met :
@@ -29,28 +24,15 @@
 // CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 // OR TORT(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-/////////////////////////////////////////////////////////////////////////
-
+////////////////////////////////////////////////////////////////////////////////////////////////////////
 #pragma once
-
-#include "ConstantsEnums.h"
 #include "stdafx.h"
-#include "ShlObj_core.h"
 
-#pragma comment(lib, "shell32.lib")
-
-struct ScreenshotSettings
+namespace IGCS::Utils
 {
-	int typeOfScreenshot = (int)ScreenshotType::HorizontalPanorama;
-	int numberOfFramesToWaitBetweenSteps = 1;
-	float lightField_distanceBetweenShots = 1.0f;
-	int lightField_numberOfShotsToTake = 45;
-	float pano_totalAngleDegrees = 110.0f;
-	float pano_overlapPercentagePerShot = 80.0f;
-	char screenshotFolder[_MAX_PATH + 1] = { 0 };
+	std::string formatString(const char* fmt, ...);
+	std::string formatStringVa(const char* fmt, va_list args);
 
-	ScreenshotSettings()
-	{
-		SHGetFolderPathA(nullptr, CSIDL_MYPICTURES, nullptr, SHGFP_TYPE_CURRENT, screenshotFolder);
-	}
-};
+	BYTE CharToByte(char c);
+	bool stringStartsWith(const char *a, const char *b);
+}

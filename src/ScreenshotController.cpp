@@ -30,28 +30,31 @@
 // OR TORT(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /////////////////////////////////////////////////////////////////////////
-///
 #include "stdafx.h"
 #include "ScreenshotController.h"
+#include <direct.h>
+#include "OverlayControl.h"
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "std_image_write.h"
+#include "Utils.h"
+#include <thread>
 
 ScreenshotController::ScreenshotController()
 {
 }
 
-ScreenshotController::~ScreenshotController()
-{}
 
-
-void ScreenshotController::configure(int numberOfFramesToWaitBetweenSteps, float movementSpeed, float rotationSpeed)
+void ScreenshotController::configure(std::string rootFolder, int numberOfFramesToWaitBetweenSteps)
 {
 	if (_state != ScreenshotControllerState::Off)
 	{
-		// Initialize can't be called when a screenhot is in progress. ignore
+		// Configure can't be called when a screenhot is in progress. ignore
 		return;
 	}
+	reset();
+
+	_rootFolder = rootFolder;
 	_numberOfFramesToWaitBetweenSteps = numberOfFramesToWaitBetweenSteps;
-	_movementSpeed = movementSpeed;
-	_rotationSpeed = rotationSpeed;
 }
 
 
@@ -59,34 +62,55 @@ bool ScreenshotController::shouldTakeShot()
 {
 	if (_convolutionFrameCounter > 0)
 	{
-		// always false
+		// always false as we're still waiting
 		return false;
 	}
 	return _state == ScreenshotControllerState::InSession;
 }
 
 
-void ScreenshotController::presentCalled(reshade::api::effect_runtime* runtime)
+void ScreenshotController::presentCalled()
 {
 	if (_convolutionFrameCounter > 0)
 	{
 		_convolutionFrameCounter--;
 	}
-	/*
+}
+
+
+void ScreenshotController::reshadeEffectsRendered(reshade::api::effect_runtime* runtime)
+{
+	if(_state!=ScreenshotControllerState::InSession)
+	{
+		return;
+	}
 	if(shouldTakeShot())
 	{
 		// take a screenshot
-		uint32_t width = 0;
-		uint32_t height = 0;
-		runtime->get_screenshot_width_and_height(&width, &height);
-		uint8_t* frameCaptured = (uint8_t*)malloc(width * height * 4);
-		runtime->capture_screenshot(frameCaptured);
-		// save screenshot.
+		runtime->get_screenshot_width_and_height(&_framebufferWidth, &_framebufferHeight);
+		std::vector<uint8_t> shotData(_framebufferWidth * _framebufferHeight * 4);
+		runtime->capture_screenshot(shotData.data());
+		storeGrabbedShot(shotData);
 	}
-	*/
+}
 
-	// OnReshadePresent is called BEFORE the effects are rendered. So we can't use that to grab the screenshot. 
 
+void ScreenshotController::cancelSession()
+{
+	switch(_state)
+	{
+	case ScreenshotControllerState::Off: 
+		return;
+	case ScreenshotControllerState::InSession:
+		_state = ScreenshotControllerState::Canceling;
+		// kill the wait thread
+		_waitCompletionHandle.notify_all();
+		reset();
+		break;
+	case ScreenshotControllerState::SavingShots:
+		_state = ScreenshotControllerState::Canceling;
+		break;
+	}
 }
 
 
@@ -118,28 +142,38 @@ void ScreenshotController::connectToCameraTools()
 			break;
 		}
 	}
+	OverlayControl::addNotification(cameraToolsConnected() ? "Camera tools connected" : "No camera tools found");
 }
 
 
-void ScreenshotController::setBufferSize(int width, int height)
+void ScreenshotController::completeShotSession()
 {
-	if (_state != ScreenshotControllerState::Off)
+	// we'll wait now till all the shots are taken. 
+	waitForShots();
+	if(_state != ScreenshotControllerState::Canceling)
 	{
-		// ignore
+		OverlayControl::addNotification("All Panorama shots have been taken. Writing shots to disk...");
+		saveGrabbedShots();
+		OverlayControl::addNotification("Panorama done.");
+	}
+	// done
+	_grabbedFrames.clear();
+	_state = ScreenshotControllerState::Off;
+}
+
+
+void ScreenshotController::startHorizontalPanoramaShot(float totalFoVInDegrees, float overlapPercentagePerPanoShot, float currentFoV, bool isTestRun)
+{
+	if(!cameraToolsConnected())
+	{
 		return;
 	}
-	_framebufferHeight = height;
-	_framebufferWidth = width;
-}
 
-
-void ScreenshotController::startHorizontalPanoramaShot(float totalFoV, float overlapPercentagePerPanoShot, float currentFoV, bool isTestRun)
-{
 	reset();
 
-	_totalFoV = totalFoV;
+	_pano_totalFoV = totalFoVInDegrees;
 	_overlapPercentagePerPanoShot = overlapPercentagePerPanoShot;
-	_currentFoV = currentFoV;
+	_pano_currentFoV = currentFoV;
 	_typeOfShot = ScreenshotType::HorizontalPanorama;
 	_isTestRun = isTestRun;
 	// panos are rotated from the far left to the far right of the total fov, where at the start, the center of the screen is rotated to the far left of the total fov, 
@@ -147,49 +181,59 @@ void ScreenshotController::startHorizontalPanoramaShot(float totalFoV, float ove
 	// on either side is preferable.
 
 	// calculate the angle to step
-	_anglePerStep = currentFoV * ((100.0f-overlapPercentagePerPanoShot) / 100.0f);
+	_pano_anglePerStep = currentFoV * ((100.0f-overlapPercentagePerPanoShot) / 100.0f);
 	// calculate the # of shots to take
-	_amountOfShotsToTake = ((_totalFoV / _anglePerStep) + 1);
+	_numberOfShotsToTake = ((_pano_totalFoV / _pano_anglePerStep) + 1);
 
+	// tell the camera tools we're starting a session.
+	if(!_igcs_StartScreenshotSessionFunc((uint8_t)_typeOfShot))
+	{
+		OverlayControl::addNotification("Screenshot session couldn't be started.");
+		return;
+	}
+	
 	// move to start
 	moveCameraForPanorama(-1, true);
 
 	// set convolution counter to its initial value
 	_convolutionFrameCounter = _numberOfFramesToWaitBetweenSteps;
 	_state = ScreenshotControllerState::InSession;
-	/*
-	// we'll wait now till all the shots are taken. 
-	waitForShots();
-	OverlayControl::addNotification("All Panorama shots have been taken. Writing shots to disk...");
-	saveGrabbedShots();
-	OverlayControl::addNotification("Panorama done.");
-	*/
-	// done
 
+	// Create a thread which will handle the end of the shot session as the shot taking is done by event handlers
+	std::thread t(&ScreenshotController::completeShotSession, this);
+	t.detach();
 }
 
 
-void ScreenshotController::startLightfieldShot(float distancePerStep, int amountOfShots, bool isTestRun)
+void ScreenshotController::startLightfieldShot(float distancePerStep, int numberOfShots, bool isTestRun)
 {
+	if(!cameraToolsConnected())
+	{
+		return;
+	}
+
 	reset();
 	_isTestRun = isTestRun;
-	_distancePerStep = distancePerStep;
-	_amountOfShotsToTake = amountOfShots;
+	_lightField_distancePerStep = distancePerStep;
+	_numberOfShotsToTake = numberOfShots;
 	_typeOfShot = ScreenshotType::Lightfield;
+
+	// tell the camera tools we're starting a session.
+	if(!_igcs_StartScreenshotSessionFunc((uint8_t)_typeOfShot))
+	{
+		OverlayControl::addNotification("Screenshot session couldn't be started.");
+		return;
+	}
+
 	// move to start
 	moveCameraForLightfield(-1, true);
 	// set convolution counter to its initial value
 	_convolutionFrameCounter = _numberOfFramesToWaitBetweenSteps;
 	_state = ScreenshotControllerState::InSession;
 
-	/*
-	// we'll wait now till all the shots are taken. 
-	waitForShots();
-	OverlayControl::addNotification("All Lightfield have been shots taken. Writing shots to disk...");
-	saveGrabbedShots();
-	OverlayControl::addNotification("Lightfield done.");
-	*/
-	// done
+	// Create a thread which will handle the end of the shot session as the shot taking is done by event handlers
+	std::thread t(&ScreenshotController::completeShotSession, this);
+	t.detach();
 }
 
 
@@ -198,19 +242,17 @@ void ScreenshotController::startCubemapProjectionPanorama(bool isTestRun)
 }
 
 
-/*
-string ScreenshotController::createScreenshotFolder()
+std::string ScreenshotController::createScreenshotFolder()
 {
 	time_t t = time(nullptr);
 	tm tm;
 	localtime_s(&tm, &t);
-	string optionalBackslash = (_rootFolder.ends_with('\\')) ? "" : "\\";
-	string folderName = Utils::formatString("%s%s%.4d-%.2d-%.2d-%.2d-%.2d-%.2d", _rootFolder.c_str(), optionalBackslash.c_str(), (tm.tm_year + 1900), (tm.tm_mon + 1), tm.tm_mday,
-		tm.tm_hour, tm.tm_min, tm.tm_sec);
-	mkdir(folderName.c_str());
+	const std::string optionalBackslash = (_rootFolder.ends_with('\\')) ? "" : "\\";
+	std::string folderName = IGCS::Utils::formatString("%s%s%.4d-%.2d-%.2d-%.2d-%.2d-%.2d", _rootFolder.c_str(), optionalBackslash.c_str(), (tm.tm_year + 1900), (tm.tm_mon + 1), tm.tm_mday,
+	                                                   tm.tm_hour, tm.tm_min, tm.tm_sec);
+	_mkdir(folderName.c_str());
 	return folderName;
 }
-*/
 
 
 void ScreenshotController::modifyCamera()
@@ -225,7 +267,7 @@ void ScreenshotController::modifyCamera()
 		moveCameraForLightfield(1, false);
 		break;
 	case ScreenshotType::CubemapProjectionPanorama:
-		// nothing
+		moveCameraForCubemapProjection(false);
 		break;
 	}
 }
@@ -233,27 +275,35 @@ void ScreenshotController::modifyCamera()
 
 void ScreenshotController::moveCameraForLightfield(int direction, bool end)
 {
-	//_camera.resetMovement();
-	float dist = direction * _distancePerStep;
+	if(nullptr==_igcs_MoveCameraFunc)
+	{
+		return;
+	}
+
+	float distance = direction * _lightField_distancePerStep;
 	if (end)
 	{
-		dist *= 0.5f * _amountOfShotsToTake;
+		distance *= 0.5f * _numberOfShotsToTake;
 	}
-	float stepSize = dist / _movementSpeed; // scale to be independent of camera movement speed
-	//_camera.moveRight(stepSize);
+	// we don't know the movement speed, so we pass the distance to the camera, and the camere has to divide by movement speed so it's independent of movement speed.
+	_igcs_MoveCameraFunc(distance, 0);
 }
 
 
 void ScreenshotController::moveCameraForPanorama(int direction, bool end)
 {
-	//_camera.resetMovement();
-	float dist = direction * _anglePerStep;
+	if(nullptr == _igcs_MoveCameraFunc)
+	{
+		return;
+	}
+
+	float distance = direction * _pano_anglePerStep;
 	if (end)
 	{
-		dist *= 0.5f * _amountOfShotsToTake;
+		distance *= 0.5f * _numberOfShotsToTake;
 	}
-	float stepSize = dist / _rotationSpeed; // scale to be independent of camera rotation speed
-	//_camera.yaw(stepSize);
+	// we don't know the movement speed, so we pass the distance to the camera, and the camere has to divide by movement speed so it's independent of movement speed.
+	_igcs_MoveCameraFunc(distance, 0);
 }
 
 
@@ -262,19 +312,97 @@ void ScreenshotController::moveCameraForCubemapProjection(bool start)
 }
 
 
+void ScreenshotController::storeGrabbedShot(std::vector<uint8_t> grabbedShot)
+{
+	if(grabbedShot.size() <= 0)
+	{
+		// failed
+		return;
+	}
+	_grabbedFrames.push_back(grabbedShot);
+	_shotCounter++;
+	if(_shotCounter > _numberOfShotsToTake)
+	{
+		// we're done. Move to the next state, which is saving shots. 
+		_state = ScreenshotControllerState::SavingShots;
+		// tell the waiting thread to wake up so the system can proceed as normal.
+		_waitCompletionHandle.notify_all();
+	}
+	else
+	{
+		modifyCamera();
+		_convolutionFrameCounter = _numberOfFramesToWaitBetweenSteps;
+	}
+}
+
+
+void ScreenshotController::saveGrabbedShots()
+{
+	if(_grabbedFrames.size() <= 0)
+	{
+		return;
+	}
+	if(!_isTestRun)
+	{
+		_state = ScreenshotControllerState::SavingShots;
+		const std::string destinationFolder = createScreenshotFolder();
+		int frameNumber = 0;
+		for(std::vector<uint8_t> frame : _grabbedFrames)
+		{
+			saveShotToFile(destinationFolder, frame, frameNumber);
+			frameNumber++;
+		}
+	}
+}
+
+
+void ScreenshotController::saveShotToFile(std::string destinationFolder, std::vector<uint8_t> data, int frameNumber)
+{
+	bool saveSuccessful = false;
+	std::string filename = "";
+
+	switch(_filetype)
+	{
+	case ScreenshotFiletype::Bmp:
+		filename = IGCS::Utils::formatString("%s\\%d.bmp", destinationFolder.c_str(), frameNumber);
+		saveSuccessful = stbi_write_bmp(filename.c_str(), _framebufferWidth, _framebufferHeight, 4, data.data()) != 0;
+		break;
+	case ScreenshotFiletype::Jpeg:
+		filename = IGCS::Utils::formatString("%s\\%d.jpg", destinationFolder.c_str(), frameNumber);
+		saveSuccessful = stbi_write_jpg(filename.c_str(), _framebufferWidth, _framebufferHeight, 4, data.data(), 98) != 0;
+		break;
+	case ScreenshotFiletype::Png:
+		filename = IGCS::Utils::formatString("%s\\%d.png", destinationFolder.c_str(), frameNumber);
+		saveSuccessful = stbi_write_png(filename.c_str(), _framebufferWidth, _framebufferHeight, 8, data.data(), 4 * _framebufferWidth) != 0;
+		break;
+	}
+}
+
+
+void ScreenshotController::waitForShots()
+{
+	std::unique_lock lock(_waitCompletionMutex);
+	while(_state != ScreenshotControllerState::SavingShots)
+	{
+		_waitCompletionHandle.wait(lock);
+	}
+	// state has changed, we're notified so we're all goed to save the shots.
+	// signal the tools the session ended.
+	_igcs_EndScreenshotSessionFunc();
+}
+
+
 void ScreenshotController::reset()
 {
 	// don't reset framebuffer width/height, numberOfFramesToWaitBetweenSteps, movementSpeed, 
 	// rotationSpeed, rootFolder as those are set through configure!
-	_typeOfShot = ScreenshotType::Lightfield;
+	_typeOfShot = ScreenshotType::HorizontalPanorama;
 	_state = ScreenshotControllerState::Off;
-	_totalFoV = 0.0f;
-	_currentFoV = 0.0f;
-	_distancePerStep = 0.0f;
-	_anglePerStep = 0.0f;
-	_amountOfShotsToTake = 0;
-	_amountOfColumns = 0;
-	_amountOfRows = 0;
+	_pano_totalFoV = 0.0f;
+	_pano_currentFoV = 0.0f;
+	_lightField_distancePerStep = 0.0f;
+	_pano_anglePerStep = 0.0f;
+	_numberOfShotsToTake = 0;
 	_convolutionFrameCounter = 0;
 	_shotCounter = 0;
 	_overlapPercentagePerPanoShot = 30.0f;

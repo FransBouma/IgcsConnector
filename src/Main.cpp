@@ -42,11 +42,11 @@
 #include <reshade.hpp>
 #include <sstream>
 #include <string>
-#include <vector>
 
 #include "CameraToolsData.h"
 #include "ScreenshotController.h"
 #include "ScreenshotSettings.h"
+#include "OverlayControl.h"
 
 using namespace reshade::api;
 
@@ -63,7 +63,6 @@ extern "C" __declspec(dllexport) LPBYTE getDataFromCameraToolsBuffer();
 static LPBYTE g_dataFromCameraToolsBuffer = nullptr;		// 8192 bytes buffer
 static ScreenshotSettings g_screenshotSettings;
 static ScreenshotController g_screenshotController;
-
 
 /// <summary>
 /// Entry point for IGCS camera tools. Call this to initialize the buffers. Obtain the buffers using the getDataFrom/ToCameraToolsBuffer functions
@@ -99,7 +98,17 @@ static LPBYTE getDataFromCameraToolsBuffer()
 
 static void onReshadePresent(effect_runtime* runtime)
 {
-	g_screenshotController.presentCalled(runtime);
+	g_screenshotController.presentCalled();
+}
+
+
+static void onReshadeOverlay(effect_runtime* runtime)
+{
+	// first let the screenshot controller grab screenshots
+	g_screenshotController.reshadeEffectsRendered(runtime);
+
+	// then we'll render our own overlay if needed
+	OverlayControl::renderOverlay();
 }
 
 
@@ -113,6 +122,24 @@ static void showHelpMarker(const char* desc)
 		ImGui::TextUnformatted(desc);
 		ImGui::PopTextWrapPos();
 		ImGui::EndTooltip();
+	}
+}
+
+
+static void startScreenshotSession(bool isTestRun)
+{
+	g_screenshotController.configure(g_screenshotSettings.screenshotFolder, g_screenshotSettings.numberOfFramesToWaitBetweenSteps);
+	const auto cameraData = (CameraToolsData*)g_dataFromCameraToolsBuffer;
+	switch(g_screenshotSettings.typeOfScreenshot)
+	{
+	case (int)ScreenshotType::HorizontalPanorama:
+		g_screenshotController.startHorizontalPanoramaShot(g_screenshotSettings.pano_totalAngleDegrees, g_screenshotSettings.pano_overlapPercentagePerShot, cameraData->fov, isTestRun);
+		break;
+	case (int)ScreenshotType::CubemapProjectionPanorama:
+		break;
+	case (int)ScreenshotType::Lightfield:
+		g_screenshotController.startLightfieldShot(g_screenshotSettings.lightField_distanceBetweenShots, g_screenshotSettings.lightField_numberOfShotsToTake, isTestRun);
+		break;
 	}
 }
 
@@ -155,23 +182,54 @@ static void displaySettings(reshade::api::effect_runtime *runtime)
 
 	if(ImGui::CollapsingHeader("Screenshot features", ImGuiTreeNodeFlags_DefaultOpen))
 	{
-		if(g_screenshotController.cameraToolsConnected())
+		if(g_screenshotController.cameraToolsConnected() && nullptr!=g_dataFromCameraToolsBuffer)
 		{
-			ImGui::SliderInt("Number of frames to wait between steps", &g_screenshotSettings.numberOfFramesToWaitBetweenSteps, 1, 100);
-			ImGui::Combo("Multi-screenshot type", &g_screenshotSettings.typeOfScreenshot, "360 degrees panorama\0Horizontal panorama\0Lightfield\0\0");
-			switch (g_screenshotSettings.typeOfScreenshot)
+			switch(g_screenshotController.getState())
 			{
-			case (int)ScreenshotType::CubemapProjectionPanorama:
+			case ScreenshotControllerState::Off:
+				{	
+					ImGui::InputText("Screenshot output directory", g_screenshotSettings.screenshotFolder, 256);
+					ImGui::SliderInt("Number of frames to wait between steps", &g_screenshotSettings.numberOfFramesToWaitBetweenSteps, 1, 100);
+					ImGui::Combo("Multi-screenshot type", &g_screenshotSettings.typeOfScreenshot, "360 degrees panorama\0Horizontal panorama\0Lightfield\0\0");
+					switch(g_screenshotSettings.typeOfScreenshot)
+					{
+					case (int)ScreenshotType::CubemapProjectionPanorama:
+						break;
+					case (int)ScreenshotType::HorizontalPanorama:
+						ImGui::SliderFloat("Total field of view in panorama (in degrees)", &g_screenshotSettings.pano_totalAngleDegrees, 30.0f, 360.0f, "%.1f");
+						ImGui::SliderFloat("Percentage of overlap between shots", &g_screenshotSettings.pano_overlapPercentagePerShot, 0.1f, 99.0f, "%.1f");
+						break;
+					case (int)ScreenshotType::Lightfield:
+						ImGui::SliderFloat("Distance between Lightfield shots", &g_screenshotSettings.lightField_distanceBetweenShots, 0.0f, 5.0f, "%.3f");
+						ImGui::SliderInt("Number of shots to take", &g_screenshotSettings.lightField_numberOfShotsToTake, 0, 60);
+						break;
+						// others: ignore.
+					}
+					if(ImGui::Button("Start screenshot session"))
+					{
+						startScreenshotSession(false);
+					}
+					ImGui::SameLine();
+					if(ImGui::Button("Start test run"))
+					{
+						startScreenshotSession(true);
+					}
+				}
 				break;
-			case (int)ScreenshotType::HorizontalPanorama:
-				ImGui::SliderFloat("Total field of view in panorama (in degrees)", &g_screenshotSettings.pano_totalAngleDegrees, 30.0f, 360.0f, "%.1f");
-				ImGui::SliderFloat("Percentage of overlap between shots", &g_screenshotSettings.pano_overlapPercentagePerShot, 0.1f, 99.0f, "%.1f");
+			case ScreenshotControllerState::InSession:
+				{
+					if(ImGui::Button("Cancel session"))
+					{
+						g_screenshotController.cancelSession();
+					}
+				}
 				break;
-			case (int)ScreenshotType::Lightfield:
-				ImGui::SliderFloat("Distance between Lightfield shots", &g_screenshotSettings.lightField_distanceBetweenShots, 0.0f, 5.0f, "%.3f");
-				ImGui::SliderInt("Number of shots to take", &g_screenshotSettings.lightField_numberOfShotsToTake, 0, 60);
+			case ScreenshotControllerState::Canceling:
+				ImGui::Text("Cancelling session...");
 				break;
-				// others: ignore.
+			case ScreenshotControllerState::SavingShots:
+				ImGui::Text("Saving shots...");
+				break;
 			}
 		}
 		else
@@ -192,6 +250,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID)
 			return FALSE;
 		}
 		reshade::register_event<reshade::addon_event::reshade_present>(onReshadePresent);
+		reshade::register_event<reshade::addon_event::reshade_overlay>(onReshadeOverlay);
 		reshade::register_overlay(nullptr, &displaySettings);
 		break;
 	case DLL_PROCESS_DETACH:

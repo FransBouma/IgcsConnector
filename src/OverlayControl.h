@@ -33,24 +33,11 @@
 
 #pragma once
 
-#include "ConstantsEnums.h"
 #include "stdafx.h"
-#include "ShlObj_core.h"
 
-#pragma comment(lib, "shell32.lib")
-
-struct ScreenshotSettings
+namespace OverlayControl
 {
-	int typeOfScreenshot = (int)ScreenshotType::HorizontalPanorama;
-	int numberOfFramesToWaitBetweenSteps = 1;
-	float lightField_distanceBetweenShots = 1.0f;
-	int lightField_numberOfShotsToTake = 45;
-	float pano_totalAngleDegrees = 110.0f;
-	float pano_overlapPercentagePerShot = 80.0f;
-	char screenshotFolder[_MAX_PATH + 1] = { 0 };
+	void renderOverlay();
+	void addNotification(std::string notificationText);
+}
 
-	ScreenshotSettings()
-	{
-		SHGetFolderPathA(nullptr, CSIDL_MYPICTURES, nullptr, SHGFP_TYPE_CURRENT, screenshotFolder);
-	}
-};

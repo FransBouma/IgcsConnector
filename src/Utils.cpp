@@ -1,13 +1,8 @@
-///////////////////////////////////////////////////////////////////////
-//
-// Part of IGCS Connector, an add on for Reshade 5+ which allows you
-// to connect IGCS built camera tools with reshade to exchange data and control
-// from Reshade.
-// 
-// (c) Frans 'Otis_Inf' Bouma.
-//
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Part of Injectable Generic Camera System
+// Copyright(c) 2019, Frans Bouma
 // All rights reserved.
-// https://github.com/FransBouma/IgcsConnector
+// https://github.com/FransBouma/InjectableGenericCameraSystem
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met :
@@ -29,28 +24,51 @@
 // CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 // OR TORT(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-/////////////////////////////////////////////////////////////////////////
-
-#pragma once
-
-#include "ConstantsEnums.h"
+////////////////////////////////////////////////////////////////////////////////////////////////////////
 #include "stdafx.h"
-#include "ShlObj_core.h"
+#include "Utils.h"
+#include <comdef.h>
+#include <codecvt>
 
-#pragma comment(lib, "shell32.lib")
+#pragma warning(disable : 4996)
 
-struct ScreenshotSettings
+using namespace std;
+
+namespace IGCS::Utils
 {
-	int typeOfScreenshot = (int)ScreenshotType::HorizontalPanorama;
-	int numberOfFramesToWaitBetweenSteps = 1;
-	float lightField_distanceBetweenShots = 1.0f;
-	int lightField_numberOfShotsToTake = 45;
-	float pano_totalAngleDegrees = 110.0f;
-	float pano_overlapPercentagePerShot = 80.0f;
-	char screenshotFolder[_MAX_PATH + 1] = { 0 };
 
-	ScreenshotSettings()
+	BYTE CharToByte(char c)
 	{
-		SHGetFolderPathA(nullptr, CSIDL_MYPICTURES, nullptr, SHGFP_TYPE_CURRENT, screenshotFolder);
+		BYTE b;
+		sscanf_s(&c, "%hhx", &b);
+		return b;
 	}
-};
+
+
+	string formatString(const char *fmt, ...)
+	{
+		va_list args;
+		va_start(args, fmt);
+		string formattedArgs = formatStringVa(fmt, args);
+		va_end(args);
+		return formattedArgs;
+	}
+
+
+	string formatStringVa(const char* fmt, va_list args)
+	{
+		va_list args_copy;
+		va_copy(args_copy, args);
+
+		int len = vsnprintf(NULL, 0, fmt, args_copy);
+		char* buffer = new char[len + 2];
+		vsnprintf(buffer, len + 1, fmt, args_copy);
+		string toReturn(buffer, len + 1);
+		return toReturn;
+	}
+
+	bool stringStartsWith(const char *a, const char *b)
+	{
+		return strncmp(a, b, strlen(b)) == 0 ? 1 : 0;
+	}
+}
