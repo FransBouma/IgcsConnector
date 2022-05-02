@@ -50,13 +50,14 @@ struct Vec3
 struct CameraToolsData
 {
 	uint64_t reserved;
-	float fov;					// in degrees
-	float coordinates[3];		// camera coordinates (x, y, z)
-	float lookQuaternion[4];	// camera look quaternion qx, qy, qz, qw
-	float rotationMatrix[9];	// rotation matrix calculated from the look quaternion. row major order, the first 3 values are the first row of the matrix
-	float up[3];				// up vector (e.g. 0, 1, 0 for y being up)
-	float right[3];				// right vector (e.g. 1, 0, 0 for x being right)
-	float forward[3];			// forward vector (e.g. 0, 0, -1 for negative z being forward)
+	float fov;							// in degrees
+	float coordinates[3];				// camera coordinates (x, y, z)
+	float lookQuaternion[4];			// camera look quaternion qx, qy, qz, qw
+	float rotationMatrix[9];			// rotation matrix calculated from the look quaternion. row major order, the first 3 values are the first row of the matrix
+	float inverseRotationMatrix[9];		// the Inverse of the rotation matrix
+	float up[3];						// up vector (e.g. 0, 1, 0 for y being up)
+	float right[3];						// right vector (e.g. 1, 0, 0 for x being right)
+	float forward[3];					// forward vector (e.g. 0, 0, -1 for negative z being forward)
 
 	Vec3 getRotationMatrixRow1()
 	{
@@ -71,5 +72,20 @@ struct CameraToolsData
 	Vec3 getRotationMatrixRow3()
 	{
 		return Vec3(rotationMatrix[6], rotationMatrix[7], rotationMatrix[8]);
+	}
+
+	Vec3 getInverseRotationMatrixRow1()
+	{
+		return Vec3(inverseRotationMatrix[0], inverseRotationMatrix[1], inverseRotationMatrix[2]);
+	}
+
+	Vec3 getInverseRotationMatrixRow2()
+	{
+		return Vec3(inverseRotationMatrix[3], inverseRotationMatrix[4], inverseRotationMatrix[5]);
+	}
+
+	Vec3 getInverseRotationMatrixRow3()
+	{
+		return Vec3(inverseRotationMatrix[6], inverseRotationMatrix[7], inverseRotationMatrix[8]);
 	}
 };

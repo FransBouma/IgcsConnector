@@ -154,32 +154,6 @@ static void displaySettings(reshade::api::effect_runtime *runtime)
 	}
 
 	ImGui::AlignTextToFramePadding();
-	if(ImGui::CollapsingHeader("Camera tools info", ImGuiTreeNodeFlags_DefaultOpen))
-	{
-		if(nullptr==g_dataFromCameraToolsBuffer)
-		{
-			ImGui::Text("Camera data not available");
-		}
-		else
-		{
-			// display camera info
-			const auto cameraData = (CameraToolsData*)g_dataFromCameraToolsBuffer;
-			std::ostringstream stringStream;
-			stringStream << std::fixed << std::setprecision(2)  << cameraData->fov;
-			const std::string fovAsString = stringStream.str();
-			ImGui::InputText("FoV (degrees)", (char*)fovAsString.c_str(), fovAsString.length(), ImGuiInputTextFlags_ReadOnly);
-			ImGui::InputFloat3("Camera coordinates", cameraData->coordinates, "%.1f", ImGuiInputTextFlags_ReadOnly);
-			ImGui::InputFloat4("Camera look quaternion", cameraData->lookQuaternion, "%.3f", ImGuiInputTextFlags_ReadOnly);
-			ImGui::InputFloat3("Rotation matrix row 1 (forward)", cameraData->getRotationMatrixRow1().values, "%.3f", ImGuiInputTextFlags_ReadOnly);
-			ImGui::InputFloat3("Rotation matrix row 2 (right)", cameraData->getRotationMatrixRow2().values, "%.3f", ImGuiInputTextFlags_ReadOnly);
-			ImGui::InputFloat3("Rotation matrix row 3 (up)", cameraData->getRotationMatrixRow3().values, "%.3f", ImGuiInputTextFlags_ReadOnly);
-			ImGui::InputFloat3("World up vector", cameraData->up, "%.1f", ImGuiInputTextFlags_ReadOnly);
-			ImGui::InputFloat3("World right vector", cameraData->right, "%.1f", ImGuiInputTextFlags_ReadOnly);
-			ImGui::InputFloat3("World forward vector", cameraData->forward, "%.1f", ImGuiInputTextFlags_ReadOnly);
-		}
-	}
-	ImGui::Separator();
-
 	if(ImGui::CollapsingHeader("Screenshot features", ImGuiTreeNodeFlags_DefaultOpen))
 	{
 		if(g_screenshotController.cameraToolsConnected() && nullptr!=g_dataFromCameraToolsBuffer)
@@ -235,6 +209,35 @@ static void displaySettings(reshade::api::effect_runtime *runtime)
 		else
 		{
 			ImGui::Text("Camera tools not available");
+		}
+	}
+
+	ImGui::AlignTextToFramePadding();
+	if(ImGui::CollapsingHeader("Camera tools info"))
+	{
+		if(nullptr == g_dataFromCameraToolsBuffer)
+		{
+			ImGui::Text("Camera data not available");
+		}
+		else
+		{
+			// display camera info
+			const auto cameraData = (CameraToolsData*)g_dataFromCameraToolsBuffer;
+			std::ostringstream stringStream;
+			stringStream << std::fixed << std::setprecision(2) << cameraData->fov;
+			const std::string fovAsString = stringStream.str();
+			ImGui::InputText("FoV (degrees)", (char*)fovAsString.c_str(), fovAsString.length(), ImGuiInputTextFlags_ReadOnly);
+			ImGui::InputFloat3("Camera coordinates", cameraData->coordinates, "%.1f", ImGuiInputTextFlags_ReadOnly);
+			ImGui::InputFloat4("Camera look quaternion", cameraData->lookQuaternion, "%.3f", ImGuiInputTextFlags_ReadOnly);
+			ImGui::InputFloat3("Rotation matrix row 1 (forward)", cameraData->getRotationMatrixRow1().values, "%.3f", ImGuiInputTextFlags_ReadOnly);
+			ImGui::InputFloat3("Rotation matrix row 2 (right)", cameraData->getRotationMatrixRow2().values, "%.3f", ImGuiInputTextFlags_ReadOnly);
+			ImGui::InputFloat3("Rotation matrix row 3 (up)", cameraData->getRotationMatrixRow3().values, "%.3f", ImGuiInputTextFlags_ReadOnly);
+			ImGui::InputFloat3("Inv. Rot matrix row 1 (forward)", cameraData->getInverseRotationMatrixRow1().values, "%.3f", ImGuiInputTextFlags_ReadOnly);
+			ImGui::InputFloat3("Inv. Rot matrix row 2 (right)", cameraData->getInverseRotationMatrixRow2().values, "%.3f", ImGuiInputTextFlags_ReadOnly);
+			ImGui::InputFloat3("Inv. Rot matrix row 3 (up)", cameraData->getInverseRotationMatrixRow3().values, "%.3f", ImGuiInputTextFlags_ReadOnly);
+			ImGui::InputFloat3("World up vector", cameraData->up, "%.1f", ImGuiInputTextFlags_ReadOnly);
+			ImGui::InputFloat3("World right vector", cameraData->right, "%.1f", ImGuiInputTextFlags_ReadOnly);
+			ImGui::InputFloat3("World forward vector", cameraData->forward, "%.1f", ImGuiInputTextFlags_ReadOnly);
 		}
 	}
 }

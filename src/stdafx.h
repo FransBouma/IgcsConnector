@@ -47,5 +47,6 @@
 #include <Psapi.h>
 #include <utility>
 #include <vector>
+#include "DirectXMath.h"
 
 // TODO: reference additional headers your program requires here

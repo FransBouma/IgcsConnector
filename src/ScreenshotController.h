@@ -45,14 +45,19 @@
 ///	0: 360 degrees panorama (using Cube projection, so 6 shots with 90 degree FoV: front, up, down, left, right, back)
 ///	1: Normal panorama
 /// 2: Lightfield (horizontal steps for 3D lightfield)
-/// <returns>true if session could be started, false otherwise (e.g. camera isn't enabled, already playing a path etc.)</returns>
-typedef bool (__stdcall* IGCS_StartScreenshotSession)(uint8_t type);
+/// <returns>0 if the session was successfully started or a value > 0 if not:
+/// 1 if the camera wasn't enabled
+/// 2 if a camera path is playing
+/// 3 if there was already a session active
+/// 4 if camera feature isn't available
+/// 5 if another error occurred</returns>
+typedef ScreenshotSessionStartReturnCode (__stdcall* IGCS_StartScreenshotSession)(uint8_t type);
 /// <summary>
 /// Moves the camera in the current session over the specified stepsize. It depends on the session active what stepSize is
 /// </summary>
 /// <param name="stepSize">
-/// if the session is a panorama, stepSize is the angle to rotate over to the right. Negative means the camera will move to the left.
-///	if the session is a 360 degrees panorama, stepsize is <=0 and the session controller steps the camera
+/// if the session is a panorama, stepSize is the angle (in radians) to rotate over to the right. Negative means the camera will move to the left.
+///	if the session is a 360 degrees panorama, stepsize is <=0 and the side to step to is in side.
 ///	if the session is a lightfield, stepSize is the amount to move the camera to the right. Negative means the camera will move to the left
 /// </param>
 /// <param name="side">the side to pick for the next shot. 0 for sessions other than 360 degree panos</param>
@@ -87,10 +92,16 @@ public:
 	/// </summary>
 	void connectToCameraTools();
 	void completeShotSession();
+	void displayScreenshotSessionStartError(ScreenshotSessionStartReturnCode sessionStartResult);
 
 	bool cameraToolsConnected() { return (nullptr != _igcs_MoveCameraFunc && nullptr != _igcs_EndScreenshotSessionFunc && nullptr != _igcs_StartScreenshotSessionFunc); }
 
 private:
+	/// <summary>
+	/// Starts a screenshot session. Displays the error if one occurs.
+	/// </summary>
+	/// <returns>true if session could successfully be started, false otherwise</returns>
+	bool startSession();
 	void waitForShots();
 	void saveGrabbedShots();
 	void storeGrabbedShot(std::vector<uint8_t>);
@@ -105,8 +116,8 @@ private:
 	IGCS_MoveCamera _igcs_MoveCameraFunc = nullptr;
 	IGCS_EndScreenshotSession _igcs_EndScreenshotSessionFunc = nullptr;
 	
-	float _pano_totalFoV = 0.0f;
-	float _pano_currentFoV = 0.0f;
+	float _pano_totalFoVRadians = 0.0f;
+	float _pano_currentFoVRadians = 0.0f;
 	float _pano_anglePerStep = 0.0f;
 	float _lightField_distancePerStep = 0.0f;
 	float _overlapPercentagePerPanoShot = 30.0f;

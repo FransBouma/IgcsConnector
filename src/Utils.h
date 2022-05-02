@@ -30,6 +30,7 @@
 
 namespace IGCS::Utils
 {
+	float degreesToRadians(float angleInDegrees);
 	std::string formatString(const char* fmt, ...);
 	std::string formatStringVa(const char* fmt, va_list args);
 

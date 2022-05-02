@@ -66,3 +66,15 @@ enum class ScreenshotFiletype : int
 	Jpeg,
 	Png
 };
+
+
+enum class ScreenshotSessionStartReturnCode : int
+{
+	AllOk = 0,
+	Error_CameraNotEnabled = 1,
+	Error_CameraPathPlaying = 2,
+	Error_AlreadySessionActive = 3,
+	Error_CameraFeatureNotAvailable = 4,
+	Error_UnknownError = 5
+};
+

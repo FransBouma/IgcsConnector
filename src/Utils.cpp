@@ -45,6 +45,12 @@ namespace IGCS::Utils
 	}
 
 
+	float degreesToRadians(float angleInDegrees)
+	{
+		return DirectX::XM_PI * (angleInDegrees / 180);
+	}
+
+
 	string formatString(const char *fmt, ...)
 	{
 		va_list args;

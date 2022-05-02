@@ -102,6 +102,10 @@ void ScreenshotController::cancelSession()
 	case ScreenshotControllerState::Off: 
 		return;
 	case ScreenshotControllerState::InSession:
+		if(nullptr!=_igcs_EndScreenshotSessionFunc)
+		{
+			_igcs_EndScreenshotSessionFunc();
+		}
 		_state = ScreenshotControllerState::Canceling;
 		// kill the wait thread
 		_waitCompletionHandle.notify_all();
@@ -148,13 +152,26 @@ void ScreenshotController::connectToCameraTools()
 
 void ScreenshotController::completeShotSession()
 {
+	std::string shotTypeDescription = "";
+	switch(_typeOfShot)
+	{
+		case ScreenshotType::CubemapProjectionPanorama:
+			shotTypeDescription = "360 degree panorama";
+			break;
+		case ScreenshotType::HorizontalPanorama:
+			shotTypeDescription = "Horizontal panorama";
+			break;
+		case ScreenshotType::Lightfield:
+			shotTypeDescription = "Lightfield";
+			break;
+	}
 	// we'll wait now till all the shots are taken. 
 	waitForShots();
 	if(_state != ScreenshotControllerState::Canceling)
 	{
-		OverlayControl::addNotification("All Panorama shots have been taken. Writing shots to disk...");
+		OverlayControl::addNotification("All " + shotTypeDescription + " shots have been taken. Writing shots to disk...");
 		saveGrabbedShots();
-		OverlayControl::addNotification("Panorama done.");
+		OverlayControl::addNotification(shotTypeDescription + " done.");
 	}
 	// done
 	_grabbedFrames.clear();
@@ -162,7 +179,41 @@ void ScreenshotController::completeShotSession()
 }
 
 
-void ScreenshotController::startHorizontalPanoramaShot(float totalFoVInDegrees, float overlapPercentagePerPanoShot, float currentFoV, bool isTestRun)
+void ScreenshotController::displayScreenshotSessionStartError(const ScreenshotSessionStartReturnCode sessionStartResult)
+{
+	std::string reason = "Unknown error.";
+	switch(sessionStartResult)
+	{
+	case ScreenshotSessionStartReturnCode::Error_CameraNotEnabled:
+		reason = "you haven't enabled the camera.";
+		break;
+	case ScreenshotSessionStartReturnCode::Error_CameraPathPlaying:
+		reason = "there's a camera path playing.";
+		break;
+	case ScreenshotSessionStartReturnCode::Error_AlreadySessionActive:
+		reason = "there's already a session active.";
+		break;
+	case ScreenshotSessionStartReturnCode::Error_CameraFeatureNotAvailable:
+		reason = "the camera feature isn't available in the tools.";
+		break;
+	}
+	OverlayControl::addNotification("Screenshot session couldn't be started: " + reason);
+}
+
+
+bool ScreenshotController::startSession()
+{
+	const auto sessionStartResult = _igcs_StartScreenshotSessionFunc((uint8_t)_typeOfShot);
+	if(sessionStartResult != ScreenshotSessionStartReturnCode::AllOk)
+	{
+		displayScreenshotSessionStartError(sessionStartResult);
+		return false;
+	}
+	return true;
+}
+
+
+void ScreenshotController::startHorizontalPanoramaShot(float totalFoVInDegrees, float overlapPercentagePerPanoShot, float currentFoVInDegrees, bool isTestRun)
 {
 	if(!cameraToolsConnected())
 	{
@@ -171,9 +222,11 @@ void ScreenshotController::startHorizontalPanoramaShot(float totalFoVInDegrees, 
 
 	reset();
 
-	_pano_totalFoV = totalFoVInDegrees;
+	// the fov passed in is in degrees as well as the total fov, we change that to radians as the tools camera works with radians.
+	float currentFoVInRadians = IGCS::Utils::degreesToRadians(currentFoVInDegrees);
+	_pano_totalFoVRadians = IGCS::Utils::degreesToRadians(totalFoVInDegrees);
 	_overlapPercentagePerPanoShot = overlapPercentagePerPanoShot;
-	_pano_currentFoV = currentFoV;
+	_pano_currentFoVRadians = currentFoVInRadians;
 	_typeOfShot = ScreenshotType::HorizontalPanorama;
 	_isTestRun = isTestRun;
 	// panos are rotated from the far left to the far right of the total fov, where at the start, the center of the screen is rotated to the far left of the total fov, 
@@ -181,14 +234,13 @@ void ScreenshotController::startHorizontalPanoramaShot(float totalFoVInDegrees, 
 	// on either side is preferable.
 
 	// calculate the angle to step
-	_pano_anglePerStep = currentFoV * ((100.0f-overlapPercentagePerPanoShot) / 100.0f);
+	_pano_anglePerStep = currentFoVInRadians * ((100.0f-overlapPercentagePerPanoShot) / 100.0f);
 	// calculate the # of shots to take
-	_numberOfShotsToTake = ((_pano_totalFoV / _pano_anglePerStep) + 1);
+	_numberOfShotsToTake = ((_pano_totalFoVRadians / _pano_anglePerStep) + 1);
 
 	// tell the camera tools we're starting a session.
-	if(!_igcs_StartScreenshotSessionFunc((uint8_t)_typeOfShot))
+	if(!startSession())
 	{
-		OverlayControl::addNotification("Screenshot session couldn't be started.");
 		return;
 	}
 	
@@ -219,9 +271,8 @@ void ScreenshotController::startLightfieldShot(float distancePerStep, int number
 	_typeOfShot = ScreenshotType::Lightfield;
 
 	// tell the camera tools we're starting a session.
-	if(!_igcs_StartScreenshotSessionFunc((uint8_t)_typeOfShot))
+	if(!startSession())
 	{
-		OverlayControl::addNotification("Screenshot session couldn't be started.");
 		return;
 	}
 
@@ -398,8 +449,8 @@ void ScreenshotController::reset()
 	// rotationSpeed, rootFolder as those are set through configure!
 	_typeOfShot = ScreenshotType::HorizontalPanorama;
 	_state = ScreenshotControllerState::Off;
-	_pano_totalFoV = 0.0f;
-	_pano_currentFoV = 0.0f;
+	_pano_totalFoVRadians = 0.0f;
+	_pano_currentFoVRadians = 0.0f;
 	_lightField_distancePerStep = 0.0f;
 	_pano_anglePerStep = 0.0f;
 	_numberOfShotsToTake = 0;
