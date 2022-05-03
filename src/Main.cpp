@@ -229,15 +229,12 @@ static void displaySettings(reshade::api::effect_runtime *runtime)
 			ImGui::InputText("FoV (degrees)", (char*)fovAsString.c_str(), fovAsString.length(), ImGuiInputTextFlags_ReadOnly);
 			ImGui::InputFloat3("Camera coordinates", cameraData->coordinates, "%.1f", ImGuiInputTextFlags_ReadOnly);
 			ImGui::InputFloat4("Camera look quaternion", cameraData->lookQuaternion, "%.3f", ImGuiInputTextFlags_ReadOnly);
-			ImGui::InputFloat3("Rotation matrix row 1 (forward)", cameraData->getRotationMatrixRow1().values, "%.3f", ImGuiInputTextFlags_ReadOnly);
-			ImGui::InputFloat3("Rotation matrix row 2 (right)", cameraData->getRotationMatrixRow2().values, "%.3f", ImGuiInputTextFlags_ReadOnly);
-			ImGui::InputFloat3("Rotation matrix row 3 (up)", cameraData->getRotationMatrixRow3().values, "%.3f", ImGuiInputTextFlags_ReadOnly);
-			ImGui::InputFloat3("Inv. Rot matrix row 1 (forward)", cameraData->getInverseRotationMatrixRow1().values, "%.3f", ImGuiInputTextFlags_ReadOnly);
-			ImGui::InputFloat3("Inv. Rot matrix row 2 (right)", cameraData->getInverseRotationMatrixRow2().values, "%.3f", ImGuiInputTextFlags_ReadOnly);
-			ImGui::InputFloat3("Inv. Rot matrix row 3 (up)", cameraData->getInverseRotationMatrixRow3().values, "%.3f", ImGuiInputTextFlags_ReadOnly);
-			ImGui::InputFloat3("World up vector", cameraData->up, "%.1f", ImGuiInputTextFlags_ReadOnly);
-			ImGui::InputFloat3("World right vector", cameraData->right, "%.1f", ImGuiInputTextFlags_ReadOnly);
-			ImGui::InputFloat3("World forward vector", cameraData->forward, "%.1f", ImGuiInputTextFlags_ReadOnly);
+			ImGui::InputFloat3("Rotation matrix Right", cameraData->rotationMatrixRightVector.values, "%.3f", ImGuiInputTextFlags_ReadOnly);
+			ImGui::InputFloat3("Rotation matrix Up", cameraData->rotationMatrixUpVector.values, "%.3f", ImGuiInputTextFlags_ReadOnly);
+			ImGui::InputFloat3("Rotation matrix Forward", cameraData->rotationMatrixForwardVector.values, "%.3f", ImGuiInputTextFlags_ReadOnly);
+			ImGui::InputFloat("Pitch (radians)", &cameraData->pitch, ImGuiInputTextFlags_ReadOnly);
+			ImGui::InputFloat("Yaw (radians)", &cameraData->yaw, ImGuiInputTextFlags_ReadOnly);
+			ImGui::InputFloat("Roll (radians)", &cameraData->roll, ImGuiInputTextFlags_ReadOnly);
 		}
 	}
 }

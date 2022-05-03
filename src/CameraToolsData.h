@@ -36,11 +36,15 @@
 
 struct Vec3
 {
-	Vec3(float x, float y, float z): values{x, y, z}
+	Vec3(float xyz[3])
 	{
+		values[0] = xyz[0];
+		values[1] = xyz[1];
+		values[2] = xyz[2];
 	}
 
 	float values[3];
+
 	float x() { return values[0];}
 	float y() { return values[1];}
 	float z() { return values[2];}
@@ -50,42 +54,13 @@ struct Vec3
 struct CameraToolsData
 {
 	uint64_t reserved;
-	float fov;							// in degrees
-	float coordinates[3];				// camera coordinates (x, y, z)
-	float lookQuaternion[4];			// camera look quaternion qx, qy, qz, qw
-	float rotationMatrix[9];			// rotation matrix calculated from the look quaternion. row major order, the first 3 values are the first row of the matrix
-	float inverseRotationMatrix[9];		// the Inverse of the rotation matrix
-	float up[3];						// up vector (e.g. 0, 1, 0 for y being up)
-	float right[3];						// right vector (e.g. 1, 0, 0 for x being right)
-	float forward[3];					// forward vector (e.g. 0, 0, -1 for negative z being forward)
-
-	Vec3 getRotationMatrixRow1()
-	{
-		return Vec3(rotationMatrix[0], rotationMatrix[1], rotationMatrix[2]);
-	}
-
-	Vec3 getRotationMatrixRow2()
-	{
-		return Vec3(rotationMatrix[3], rotationMatrix[4], rotationMatrix[5]);
-	}
-
-	Vec3 getRotationMatrixRow3()
-	{
-		return Vec3(rotationMatrix[6], rotationMatrix[7], rotationMatrix[8]);
-	}
-
-	Vec3 getInverseRotationMatrixRow1()
-	{
-		return Vec3(inverseRotationMatrix[0], inverseRotationMatrix[1], inverseRotationMatrix[2]);
-	}
-
-	Vec3 getInverseRotationMatrixRow2()
-	{
-		return Vec3(inverseRotationMatrix[3], inverseRotationMatrix[4], inverseRotationMatrix[5]);
-	}
-
-	Vec3 getInverseRotationMatrixRow3()
-	{
-		return Vec3(inverseRotationMatrix[6], inverseRotationMatrix[7], inverseRotationMatrix[8]);
-	}
+	float fov;								// in degrees
+	float coordinates[3];					// camera coordinates (x, y, z)
+	float lookQuaternion[4];				// camera look quaternion qx, qy, qz, qw
+	Vec3 rotationMatrixUpVector;			// up vector from the rotation matrix calculated from the look quaternion. 
+	Vec3 rotationMatrixRightVector;			// right vector from the rotation matrix calculated from the look quaternion. 
+	Vec3 rotationMatrixForwardVector;		// forward vector from the rotation matrix calculated from the look quaternion. 
+	float pitch;							// in radians
+	float yaw;
+	float roll;
 };
