@@ -42,6 +42,7 @@
 struct ScreenshotSettings
 {
 	int typeOfScreenshot = (int)ScreenshotType::HorizontalPanorama;
+	int screenshotFileType = (int)ScreenshotFiletype::Jpeg;
 	int numberOfFramesToWaitBetweenSteps = 1;
 	float lightField_distanceBetweenShots = 1.0f;
 	int lightField_numberOfShotsToTake = 45;

@@ -35,16 +35,14 @@
 #include <reshade_api.hpp>
 #include <string>
 
-#include "ScreenshotSettings.h"
 #include "ConstantsEnums.h"
 
 /// <summary>
 /// Starts a screenshot session of the specified type
 /// </summary>
 ///	<param name="type">specifies the screenshot session type:</param>
-///	0: 360 degrees panorama (using Cube projection, so 6 shots with 90 degree FoV: front, up, down, left, right, back)
-///	1: Normal panorama
-/// 2: Lightfield (horizontal steps for 3D lightfield)
+///	0: Normal panorama
+/// 1: Lightfield (horizontal steps for 3D lightfield)
 /// <returns>0 if the session was successfully started or a value > 0 if not:
 /// 1 if the camera wasn't enabled
 /// 2 if a camera path is playing
@@ -57,11 +55,9 @@ typedef ScreenshotSessionStartReturnCode (__stdcall* IGCS_StartScreenshotSession
 /// </summary>
 /// <param name="stepSize">
 /// if the session is a panorama, stepSize is the angle (in radians) to rotate over to the right. Negative means the camera will move to the left.
-///	if the session is a 360 degrees panorama, stepsize is <=0 and the side to step to is in side.
 ///	if the session is a lightfield, stepSize is the amount to move the camera to the right. Negative means the camera will move to the left
 /// </param>
-/// <param name="side">the side to pick for the next shot. 0 for sessions other than 360 degree panos</param>
-typedef void (__stdcall* IGCS_MoveCamera)(float stepSize, int side);
+typedef void (__stdcall* IGCS_MoveCamera)(float stepSize);
 /// <summary>
 /// Ends the active screenshot session, restoring camera data if required.
 /// </summary>
@@ -75,10 +71,9 @@ public:
 	ScreenshotController();
 	~ScreenshotController() = default;
 
-	void configure(std::string rootFolder, int numberOfFramesToWaitBetweenSteps);
+	void configure(std::string rootFolder, int numberOfFramesToWaitBetweenSteps, ScreenshotFiletype filetype);
 	void startHorizontalPanoramaShot(float totalFoVInDegrees, float overlapPercentagePerPanoShot, float currentFoVInDegrees, bool isTestRun);
 	void startLightfieldShot(float distancePerStep, int numberOfShots, bool isTestRun);
-	void startCubemapProjectionPanorama(bool isTestRun);
 	ScreenshotControllerState getState() { return _state; }
 	void reset();
 	bool shouldTakeShot();		// returns true if a shot should be taken, false otherwise. 
@@ -105,12 +100,12 @@ private:
 	void waitForShots();
 	void saveGrabbedShots();
 	void storeGrabbedShot(std::vector<uint8_t>);
-	void saveShotToFile(std::string destinationFolder, std::vector<uint8_t> data, int frameNumber);
+	void saveShotToFile(std::string destinationFolder, const std::vector<uint8_t>& data, int frameNumber);
 	std::string createScreenshotFolder();
 	void moveCameraForLightfield(int direction, bool end);
 	void moveCameraForPanorama(int direction, bool end);
-	void moveCameraForCubemapProjection(bool start);
 	void modifyCamera();
+	std::string typeOfShotAsString();
 
 	IGCS_StartScreenshotSession _igcs_StartScreenshotSessionFunc = nullptr;
 	IGCS_MoveCamera _igcs_MoveCameraFunc = nullptr;
@@ -127,7 +122,6 @@ private:
 	int _numberOfFramesToWaitBetweenSteps = 1;
 	uint32_t _framebufferWidth = 0;
 	uint32_t _framebufferHeight = 0;
-	CubemapProjectionState _cubeMapState = CubemapProjectionState::Unknown;
 	ScreenshotType _typeOfShot = ScreenshotType::HorizontalPanorama;
 	ScreenshotControllerState _state = ScreenshotControllerState::Off;
 	ScreenshotFiletype _filetype = ScreenshotFiletype::Jpeg;

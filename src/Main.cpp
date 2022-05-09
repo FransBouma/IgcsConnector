@@ -128,14 +128,12 @@ static void showHelpMarker(const char* desc)
 
 static void startScreenshotSession(bool isTestRun)
 {
-	g_screenshotController.configure(g_screenshotSettings.screenshotFolder, g_screenshotSettings.numberOfFramesToWaitBetweenSteps);
+	g_screenshotController.configure(g_screenshotSettings.screenshotFolder, g_screenshotSettings.numberOfFramesToWaitBetweenSteps, (ScreenshotFiletype)g_screenshotSettings.screenshotFileType);
 	const auto cameraData = (CameraToolsData*)g_dataFromCameraToolsBuffer;
 	switch(g_screenshotSettings.typeOfScreenshot)
 	{
 	case (int)ScreenshotType::HorizontalPanorama:
 		g_screenshotController.startHorizontalPanoramaShot(g_screenshotSettings.pano_totalAngleDegrees, g_screenshotSettings.pano_overlapPercentagePerShot, cameraData->fov, isTestRun);
-		break;
-	case (int)ScreenshotType::CubemapProjectionPanorama:
 		break;
 	case (int)ScreenshotType::Lightfield:
 		g_screenshotController.startLightfieldShot(g_screenshotSettings.lightField_distanceBetweenShots, g_screenshotSettings.lightField_numberOfShotsToTake, isTestRun);
@@ -164,11 +162,10 @@ static void displaySettings(reshade::api::effect_runtime *runtime)
 				{	
 					ImGui::InputText("Screenshot output directory", g_screenshotSettings.screenshotFolder, 256);
 					ImGui::SliderInt("Number of frames to wait between steps", &g_screenshotSettings.numberOfFramesToWaitBetweenSteps, 1, 100);
-					ImGui::Combo("Multi-screenshot type", &g_screenshotSettings.typeOfScreenshot, "360 degrees panorama\0Horizontal panorama\0Lightfield\0\0");
+					ImGui::Combo("Multi-screenshot type", &g_screenshotSettings.typeOfScreenshot, "Horizontal panorama\0Lightfield\0\0");
+					ImGui::Combo("File type", &g_screenshotSettings.screenshotFileType, "Bmp\0Jpeg\0Png\0\0");
 					switch(g_screenshotSettings.typeOfScreenshot)
 					{
-					case (int)ScreenshotType::CubemapProjectionPanorama:
-						break;
 					case (int)ScreenshotType::HorizontalPanorama:
 						ImGui::SliderFloat("Total field of view in panorama (in degrees)", &g_screenshotSettings.pano_totalAngleDegrees, 30.0f, 360.0f, "%.1f");
 						ImGui::SliderFloat("Percentage of overlap between shots", &g_screenshotSettings.pano_overlapPercentagePerShot, 0.1f, 99.0f, "%.1f");

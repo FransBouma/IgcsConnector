@@ -43,22 +43,10 @@ enum class ScreenshotControllerState : int
 
 enum class ScreenshotType : int
 {
-	CubemapProjectionPanorama = 0,
-	HorizontalPanorama = 1,
-	Lightfield = 2,
+	HorizontalPanorama = 0,
+	Lightfield = 1,
 };
 
-
-enum class CubemapProjectionState : int
-{
-	Unknown = 0,
-	Front = 1,
-	Up = 2,
-	Down = 3,
-	Left = 4,
-	Right = 5,
-	Back = 6
-};
 
 enum class ScreenshotFiletype : int
 {

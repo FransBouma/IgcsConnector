@@ -28,6 +28,9 @@
     <ClInclude Include="std_image_write.h">
       <Filter>ExternalCode</Filter>
     </ClInclude>
+    <ClInclude Include="fpng.h">
+      <Filter>Include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Code">
@@ -54,6 +57,9 @@
       <Filter>Code</Filter>
     </ClCompile>
     <ClCompile Include="Utils.cpp">
+      <Filter>Code</Filter>
+    </ClCompile>
+    <ClCompile Include="fpng.cpp">
       <Filter>Code</Filter>
     </ClCompile>
   </ItemGroup>

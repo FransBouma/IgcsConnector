@@ -39,12 +39,14 @@
 #include "Utils.h"
 #include <thread>
 
+#include "fpng.h"
+
 ScreenshotController::ScreenshotController()
 {
 }
 
 
-void ScreenshotController::configure(std::string rootFolder, int numberOfFramesToWaitBetweenSteps)
+void ScreenshotController::configure(std::string rootFolder, int numberOfFramesToWaitBetweenSteps, ScreenshotFiletype filetype)
 {
 	if (_state != ScreenshotControllerState::Off)
 	{
@@ -55,6 +57,7 @@ void ScreenshotController::configure(std::string rootFolder, int numberOfFramesT
 
 	_rootFolder = rootFolder;
 	_numberOfFramesToWaitBetweenSteps = numberOfFramesToWaitBetweenSteps;
+	_filetype = filetype;
 }
 
 
@@ -90,6 +93,13 @@ void ScreenshotController::reshadeEffectsRendered(reshade::api::effect_runtime* 
 		runtime->get_screenshot_width_and_height(&_framebufferWidth, &_framebufferHeight);
 		std::vector<uint8_t> shotData(_framebufferWidth * _framebufferHeight * 4);
 		runtime->capture_screenshot(shotData.data());
+
+		// as alpha is 0 anyway, we pack the RGBA data as RGB data. This is faster than setting all alpha channels to FF.
+		// From Reshade
+		for(int i = 0; i < _framebufferWidth * _framebufferHeight; ++i)
+		{
+			*reinterpret_cast<uint32_t*>(shotData.data() + 3 * i) = *reinterpret_cast<const uint32_t*>(shotData.data() + 4 * i);
+		}
 		storeGrabbedShot(shotData);
 	}
 }
@@ -109,7 +119,6 @@ void ScreenshotController::cancelSession()
 		_state = ScreenshotControllerState::Canceling;
 		// kill the wait thread
 		_waitCompletionHandle.notify_all();
-		reset();
 		break;
 	case ScreenshotControllerState::SavingShots:
 		_state = ScreenshotControllerState::Canceling;
@@ -152,30 +161,24 @@ void ScreenshotController::connectToCameraTools()
 
 void ScreenshotController::completeShotSession()
 {
-	std::string shotTypeDescription = "";
-	switch(_typeOfShot)
-	{
-		case ScreenshotType::CubemapProjectionPanorama:
-			shotTypeDescription = "360 degree panorama";
-			break;
-		case ScreenshotType::HorizontalPanorama:
-			shotTypeDescription = "Horizontal panorama";
-			break;
-		case ScreenshotType::Lightfield:
-			shotTypeDescription = "Lightfield";
-			break;
-	}
+	const std::string shotTypeDescription = typeOfShotAsString();
 	// we'll wait now till all the shots are taken. 
 	waitForShots();
 	if(_state != ScreenshotControllerState::Canceling)
 	{
-		OverlayControl::addNotification("All " + shotTypeDescription + " shots have been taken. Writing shots to disk...");
-		saveGrabbedShots();
-		OverlayControl::addNotification(shotTypeDescription + " done.");
+		if(_isTestRun)
+		{
+			OverlayControl::addNotification("Test run completed.");
+		}
+		else
+		{
+			OverlayControl::addNotification("All " + shotTypeDescription + " shots have been taken. Writing shots to disk...");
+			saveGrabbedShots();
+			OverlayControl::addNotification(shotTypeDescription + " done.");
+		}
 	}
 	// done
-	_grabbedFrames.clear();
-	_state = ScreenshotControllerState::Off;
+	reset();
 }
 
 
@@ -223,7 +226,7 @@ void ScreenshotController::startHorizontalPanoramaShot(float totalFoVInDegrees, 
 	reset();
 
 	// the fov passed in is in degrees as well as the total fov, we change that to radians as the tools camera works with radians.
-	float currentFoVInRadians = IGCS::Utils::degreesToRadians(currentFoVInDegrees);
+	const float currentFoVInRadians = IGCS::Utils::degreesToRadians(currentFoVInDegrees);
 	_pano_totalFoVRadians = IGCS::Utils::degreesToRadians(totalFoVInDegrees);
 	_overlapPercentagePerPanoShot = overlapPercentagePerPanoShot;
 	_pano_currentFoVRadians = currentFoVInRadians;
@@ -288,19 +291,14 @@ void ScreenshotController::startLightfieldShot(float distancePerStep, int number
 }
 
 
-void ScreenshotController::startCubemapProjectionPanorama(bool isTestRun)
-{
-}
-
-
 std::string ScreenshotController::createScreenshotFolder()
 {
 	time_t t = time(nullptr);
 	tm tm;
 	localtime_s(&tm, &t);
 	const std::string optionalBackslash = (_rootFolder.ends_with('\\')) ? "" : "\\";
-	std::string folderName = IGCS::Utils::formatString("%s%s%.4d-%.2d-%.2d-%.2d-%.2d-%.2d", _rootFolder.c_str(), optionalBackslash.c_str(), (tm.tm_year + 1900), (tm.tm_mon + 1), tm.tm_mday,
-	                                                   tm.tm_hour, tm.tm_min, tm.tm_sec);
+	std::string folderName = IGCS::Utils::formatString("%s%s%s-%.4d-%.2d-%.2d-%.2d-%.2d-%.2d", _rootFolder.c_str(), optionalBackslash.c_str(), typeOfShotAsString().c_str(), 
+													   (tm.tm_year + 1900), (tm.tm_mon + 1), tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 	_mkdir(folderName.c_str());
 	return folderName;
 }
@@ -317,10 +315,21 @@ void ScreenshotController::modifyCamera()
 	case ScreenshotType::Lightfield:
 		moveCameraForLightfield(1, false);
 		break;
-	case ScreenshotType::CubemapProjectionPanorama:
-		moveCameraForCubemapProjection(false);
-		break;
 	}
+}
+
+
+std::string ScreenshotController::typeOfShotAsString()
+{
+	// based on the type of the shot, we'll either rotate or move.
+	switch(_typeOfShot)
+	{
+	case ScreenshotType::HorizontalPanorama:
+		return "HorizontalPanorama";
+	case ScreenshotType::Lightfield:
+		return "Lightfield";
+	}
+	return "";
 }
 
 
@@ -337,7 +346,7 @@ void ScreenshotController::moveCameraForLightfield(int direction, bool end)
 		distance *= 0.5f * _numberOfShotsToTake;
 	}
 	// we don't know the movement speed, so we pass the distance to the camera, and the camere has to divide by movement speed so it's independent of movement speed.
-	_igcs_MoveCameraFunc(distance, 0);
+	_igcs_MoveCameraFunc(distance);
 }
 
 
@@ -354,13 +363,9 @@ void ScreenshotController::moveCameraForPanorama(int direction, bool end)
 		distance *= 0.5f * _numberOfShotsToTake;
 	}
 	// we don't know the movement speed, so we pass the distance to the camera, and the camere has to divide by movement speed so it's independent of movement speed.
-	_igcs_MoveCameraFunc(distance, 0);
+	_igcs_MoveCameraFunc(distance);
 }
 
-
-void ScreenshotController::moveCameraForCubemapProjection(bool start)
-{
-}
 
 
 void ScreenshotController::storeGrabbedShot(std::vector<uint8_t> grabbedShot)
@@ -370,6 +375,7 @@ void ScreenshotController::storeGrabbedShot(std::vector<uint8_t> grabbedShot)
 		// failed
 		return;
 	}
+
 	_grabbedFrames.push_back(grabbedShot);
 	_shotCounter++;
 	if(_shotCounter > _numberOfShotsToTake)
@@ -398,7 +404,7 @@ void ScreenshotController::saveGrabbedShots()
 		_state = ScreenshotControllerState::SavingShots;
 		const std::string destinationFolder = createScreenshotFolder();
 		int frameNumber = 0;
-		for(std::vector<uint8_t> frame : _grabbedFrames)
+		for(const std::vector<uint8_t>& frame : _grabbedFrames)
 		{
 			saveShotToFile(destinationFolder, frame, frameNumber);
 			frameNumber++;
@@ -407,24 +413,36 @@ void ScreenshotController::saveGrabbedShots()
 }
 
 
-void ScreenshotController::saveShotToFile(std::string destinationFolder, std::vector<uint8_t> data, int frameNumber)
+void ScreenshotController::saveShotToFile(std::string destinationFolder, const std::vector<uint8_t>& data, int frameNumber)
 {
-	bool saveSuccessful = false;
 	std::string filename = "";
 
+	// The shot data is RGB as we packed the RGBA data as RGB as Alpha is 0 in the source. So we pass 3 as the comp
 	switch(_filetype)
 	{
 	case ScreenshotFiletype::Bmp:
 		filename = IGCS::Utils::formatString("%s\\%d.bmp", destinationFolder.c_str(), frameNumber);
-		saveSuccessful = stbi_write_bmp(filename.c_str(), _framebufferWidth, _framebufferHeight, 4, data.data()) != 0;
+		stbi_write_bmp(filename.c_str(), _framebufferWidth, _framebufferHeight, 3, data.data()) != 0;
 		break;
 	case ScreenshotFiletype::Jpeg:
 		filename = IGCS::Utils::formatString("%s\\%d.jpg", destinationFolder.c_str(), frameNumber);
-		saveSuccessful = stbi_write_jpg(filename.c_str(), _framebufferWidth, _framebufferHeight, 4, data.data(), 98) != 0;
+		stbi_write_jpg(filename.c_str(), _framebufferWidth, _framebufferHeight, 3, data.data(), 98) != 0;
 		break;
 	case ScreenshotFiletype::Png:
 		filename = IGCS::Utils::formatString("%s\\%d.png", destinationFolder.c_str(), frameNumber);
-		saveSuccessful = stbi_write_png(filename.c_str(), _framebufferWidth, _framebufferHeight, 8, data.data(), 4 * _framebufferWidth) != 0;
+		// 3 bytes per pixel!
+		//stbi_write_png(filename.c_str(), _framebufferWidth, _framebufferHeight, 3, data.data(), 3 * _framebufferWidth) != 0;
+		std::vector<uint8_t> encoded_data;
+		fpng::fpng_encode_image_to_memory(data.data(), _framebufferWidth, _framebufferHeight, 3, encoded_data);
+		FILE* pngFile;
+		if(fopen_s(&pngFile, filename.c_str(), "wb")==0)
+		{
+			fwrite(encoded_data.data(), encoded_data.size(), 1, pngFile);
+		}
+		if(nullptr != pngFile)
+		{
+			fclose(pngFile);
+		}
 		break;
 	}
 }
@@ -433,11 +451,8 @@ void ScreenshotController::saveShotToFile(std::string destinationFolder, std::ve
 void ScreenshotController::waitForShots()
 {
 	std::unique_lock lock(_waitCompletionMutex);
-	while(_state != ScreenshotControllerState::SavingShots)
-	{
-		_waitCompletionHandle.wait(lock);
-	}
-	// state has changed, we're notified so we're all goed to save the shots.
+	_waitCompletionHandle.wait(lock, [this] {return _state != ScreenshotControllerState::InSession; });
+	// state isn't in-session, we're notified so we're all goed to save the shots.
 	// signal the tools the session ended.
 	_igcs_EndScreenshotSessionFunc();
 }
@@ -458,4 +473,5 @@ void ScreenshotController::reset()
 	_shotCounter = 0;
 	_overlapPercentagePerPanoShot = 30.0f;
 	_isTestRun = false;
+	_grabbedFrames.clear();
 }
