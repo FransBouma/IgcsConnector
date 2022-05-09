@@ -224,8 +224,8 @@ static void displaySettings(reshade::api::effect_runtime *runtime)
 			stringStream << std::fixed << std::setprecision(2) << cameraData->fov;
 			const std::string fovAsString = stringStream.str();
 			ImGui::InputText("FoV (degrees)", (char*)fovAsString.c_str(), fovAsString.length(), ImGuiInputTextFlags_ReadOnly);
-			ImGui::InputFloat3("Camera coordinates", cameraData->coordinates, "%.1f", ImGuiInputTextFlags_ReadOnly);
-			ImGui::InputFloat4("Camera look quaternion", cameraData->lookQuaternion, "%.3f", ImGuiInputTextFlags_ReadOnly);
+			ImGui::InputFloat3("Camera coordinates", cameraData->coordinates.values, "%.1f", ImGuiInputTextFlags_ReadOnly);
+			ImGui::InputFloat4("Camera look quaternion", cameraData->lookQuaternion.values, "%.3f", ImGuiInputTextFlags_ReadOnly);
 			ImGui::InputFloat3("Rotation matrix Right", cameraData->rotationMatrixRightVector.values, "%.3f", ImGuiInputTextFlags_ReadOnly);
 			ImGui::InputFloat3("Rotation matrix Up", cameraData->rotationMatrixUpVector.values, "%.3f", ImGuiInputTextFlags_ReadOnly);
 			ImGui::InputFloat3("Rotation matrix Forward", cameraData->rotationMatrixForwardVector.values, "%.3f", ImGuiInputTextFlags_ReadOnly);

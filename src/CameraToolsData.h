@@ -36,18 +36,66 @@
 
 struct Vec3
 {
-	Vec3(float xyz[3])
+	float values[3];
+
+	//----------------------------------
+	// Methods below this line
+	explicit Vec3(float xyz[3])
 	{
 		values[0] = xyz[0];
 		values[1] = xyz[1];
 		values[2] = xyz[2];
 	}
 
-	float values[3];
+	void setValues(DirectX::XMFLOAT3 v)
+	{
+		setValues(v.x, v.y, v.z);
+	}
 
-	float x() { return values[0];}
-	float y() { return values[1];}
-	float z() { return values[2];}
+	void setValues(float x, float y, float z)
+	{
+		values[0] = x;
+		values[1] = y;
+		values[2] = z;
+	}
+
+	float x() { return values[0]; }
+	float y() { return values[1]; }
+	float z() { return values[2]; }
+};
+
+
+struct Vec4
+{
+	float values[4];
+
+	//----------------------------------
+	// Methods below this line
+	explicit Vec4(float xyzw[4])
+	{
+		values[0] = xyzw[0];
+		values[1] = xyzw[1];
+		values[2] = xyzw[2];
+		values[3] = xyzw[3];
+	}
+
+	void setValues(DirectX::XMFLOAT4 v)
+	{
+		setValues(v.x, v.y, v.z, v.w);
+	}
+
+	void setValues(float x, float y, float z, float w)
+	{
+		values[0] = x;
+		values[1] = y;
+		values[2] = z;
+		values[3] = w;
+	}
+
+	float x() { return values[0]; }
+	float y() { return values[1]; }
+	float z() { return values[2]; }
+	float w() { return values[3]; }
 };
 
 
@@ -55,8 +103,8 @@ struct CameraToolsData
 {
 	uint64_t reserved;
 	float fov;								// in degrees
-	float coordinates[3];					// camera coordinates (x, y, z)
-	float lookQuaternion[4];				// camera look quaternion qx, qy, qz, qw
+	Vec3 coordinates;						// camera coordinates (x, y, z)
+	Vec4 lookQuaternion;					// camera look quaternion qx, qy, qz, qw
 	Vec3 rotationMatrixUpVector;			// up vector from the rotation matrix calculated from the look quaternion. 
 	Vec3 rotationMatrixRightVector;			// right vector from the rotation matrix calculated from the look quaternion. 
 	Vec3 rotationMatrixForwardVector;		// forward vector from the rotation matrix calculated from the look quaternion. 
