@@ -45,6 +45,7 @@ enum class ScreenshotType : int
 {
 	HorizontalPanorama = 0,
 	Lightfield = 1,
+	DebugGrid = 2,
 };
 
 

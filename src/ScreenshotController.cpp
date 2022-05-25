@@ -151,7 +151,8 @@ void ScreenshotController::connectToCameraTools()
 			}
 			// map the other functions
 			_igcs_EndScreenshotSessionFunc = (IGCS_EndScreenshotSession)GetProcAddress(moduleHandle, "IGCS_EndScreenshotSession");
-			_igcs_MoveCameraFunc = (IGCS_MoveCamera)GetProcAddress(moduleHandle, "IGCS_MoveCamera");
+			_igcs_MoveCameraPanoramaFunc = (IGCS_MoveCameraPanorama)GetProcAddress(moduleHandle, "IGCS_MoveCameraPanorama");
+			_igcs_MoveCameraMultishotFunc = (IGCS_MoveCameraMultishot)GetProcAddress(moduleHandle, "IGCS_MoveCameraMultishot");
 			break;
 		}
 	}
@@ -206,7 +207,15 @@ void ScreenshotController::displayScreenshotSessionStartError(const ScreenshotSe
 
 bool ScreenshotController::startSession()
 {
-	const auto sessionStartResult = _igcs_StartScreenshotSessionFunc((uint8_t)_typeOfShot);
+	uint8_t typeOfShotToUse = (uint8_t)_typeOfShot;
+#ifdef _DEBUG
+	if(_typeOfShot==ScreenshotType::DebugGrid)
+	{
+		typeOfShotToUse = (uint8_t)ScreenshotType::Lightfield;
+	}
+#endif
+
+	const auto sessionStartResult = _igcs_StartScreenshotSessionFunc(typeOfShotToUse);
 	if(sessionStartResult != ScreenshotSessionStartReturnCode::AllOk)
 	{
 		displayScreenshotSessionStartError(sessionStartResult);
@@ -291,6 +300,39 @@ void ScreenshotController::startLightfieldShot(float distancePerStep, int number
 }
 
 
+void ScreenshotController::startDebugGridShot()
+{
+	if(!cameraToolsConnected())
+	{
+		return;
+	}
+
+	// debug grid is basically a 5 horizontal, 3 row grid where the camera is moved 10 positions to the right and then down, then to the left then down and to the right again.
+
+	reset();
+	_isTestRun = true;
+	_lightField_distancePerStep = 10;
+	_numberOfShotsToTake = 15;
+	_typeOfShot = ScreenshotType::DebugGrid;
+
+	// tell the camera tools we're starting a session.
+	if(!startSession())
+	{
+		return;
+	}
+
+	// move to start
+	moveCameraForDebugGrid(-1, true);
+	// set convolution counter to its initial value
+	_convolutionFrameCounter = _numberOfFramesToWaitBetweenSteps;
+	_state = ScreenshotControllerState::InSession;
+
+	// Create a thread which will handle the end of the shot session as the shot taking is done by event handlers
+	std::thread t(&ScreenshotController::completeShotSession, this);
+	t.detach();
+}
+
+
 std::string ScreenshotController::createScreenshotFolder()
 {
 	time_t t = time(nullptr);
@@ -315,6 +357,12 @@ void ScreenshotController::modifyCamera()
 	case ScreenshotType::Lightfield:
 		moveCameraForLightfield(1, false);
 		break;
+#ifdef _DEBUG
+	case ScreenshotType::DebugGrid:
+		moveCameraForDebugGrid(_shotCounter, false);
+		break;
+#endif
+
 	}
 }
 
@@ -328,6 +376,11 @@ std::string ScreenshotController::typeOfShotAsString()
 		return "HorizontalPanorama";
 	case ScreenshotType::Lightfield:
 		return "Lightfield";
+#ifdef _DEBUG
+	case ScreenshotType::DebugGrid:
+		return "DebugGrid";
+#endif
+		
 	}
 	return "";
 }
@@ -335,7 +388,7 @@ std::string ScreenshotController::typeOfShotAsString()
 
 void ScreenshotController::moveCameraForLightfield(int direction, bool end)
 {
-	if(nullptr==_igcs_MoveCameraFunc)
+	if(nullptr==_igcs_MoveCameraMultishotFunc)
 	{
 		return;
 	}
@@ -346,13 +399,14 @@ void ScreenshotController::moveCameraForLightfield(int direction, bool end)
 		distance *= 0.5f * _numberOfShotsToTake;
 	}
 	// we don't know the movement speed, so we pass the distance to the camera, and the camere has to divide by movement speed so it's independent of movement speed.
-	_igcs_MoveCameraFunc(distance);
+	// we don't move up/down so we pass in 0. We don't change the fov and the step is relative to the current camera location.
+	_igcs_MoveCameraMultishotFunc(distance, 0.0f, 0.0f, false);
 }
 
 
 void ScreenshotController::moveCameraForPanorama(int direction, bool end)
 {
-	if(nullptr == _igcs_MoveCameraFunc)
+	if(nullptr == _igcs_MoveCameraPanoramaFunc)
 	{
 		return;
 	}
@@ -363,9 +417,36 @@ void ScreenshotController::moveCameraForPanorama(int direction, bool end)
 		distance *= 0.5f * _numberOfShotsToTake;
 	}
 	// we don't know the movement speed, so we pass the distance to the camera, and the camere has to divide by movement speed so it's independent of movement speed.
-	_igcs_MoveCameraFunc(distance);
+	_igcs_MoveCameraPanoramaFunc(distance);
 }
 
+
+void ScreenshotController::moveCameraForDebugGrid(int shotCounter, bool end)
+{
+	if(nullptr == _igcs_MoveCameraMultishotFunc)
+	{
+		return;
+	}
+
+
+	float horizontalStep = 0.0f;
+	float verticalStep = 0.0f;
+	if(end)
+	{
+		horizontalStep = -20.0f;
+		verticalStep = -20.0f;
+	}
+	else
+	{
+		verticalStep = (shotCounter / 5);
+		verticalStep = (-20 + 10 * verticalStep);
+		horizontalStep = (shotCounter % 5);
+		horizontalStep = -20 + 10 * horizontalStep;
+	}
+	// we don't know the movement speed, so we pass the distance to the camera, and the camere has to divide by movement speed so it's independent of movement speed.
+	// we don't move up/down so we pass in 0. We don't change the fov and the step is relative to the current camera location.
+	_igcs_MoveCameraMultishotFunc(horizontalStep, verticalStep, 30.0f, true);
+}
 
 
 void ScreenshotController::storeGrabbedShot(std::vector<uint8_t> grabbedShot)
@@ -378,7 +459,7 @@ void ScreenshotController::storeGrabbedShot(std::vector<uint8_t> grabbedShot)
 
 	_grabbedFrames.push_back(grabbedShot);
 	_shotCounter++;
-	if(_shotCounter > _numberOfShotsToTake)
+	if(_shotCounter >= _numberOfShotsToTake)
 	{
 		// we're done. Move to the next state, which is saving shots. 
 		_state = ScreenshotControllerState::SavingShots;

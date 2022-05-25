@@ -59,7 +59,6 @@ extern "C" __declspec(dllexport) bool connectFromCameraTools();
 extern "C" __declspec(dllexport) LPBYTE getDataFromCameraToolsBuffer();
 
 
-
 static LPBYTE g_dataFromCameraToolsBuffer = nullptr;		// 8192 bytes buffer
 static ScreenshotSettings g_screenshotSettings;
 static ScreenshotController g_screenshotController;
@@ -138,6 +137,11 @@ static void startScreenshotSession(bool isTestRun)
 	case (int)ScreenshotType::Lightfield:
 		g_screenshotController.startLightfieldShot(g_screenshotSettings.lightField_distanceBetweenShots, g_screenshotSettings.lightField_numberOfShotsToTake, isTestRun);
 		break;
+#ifdef _DEBUG
+	case (int)ScreenshotType::DebugGrid:
+		g_screenshotController.startDebugGridShot();
+		break;
+#endif
 	}
 }
 
@@ -162,7 +166,11 @@ static void displaySettings(reshade::api::effect_runtime *runtime)
 				{	
 					ImGui::InputText("Screenshot output directory", g_screenshotSettings.screenshotFolder, 256);
 					ImGui::SliderInt("Number of frames to wait between steps", &g_screenshotSettings.numberOfFramesToWaitBetweenSteps, 1, 100);
+#ifdef _DEBUG
+					ImGui::Combo("Multi-screenshot type", &g_screenshotSettings.typeOfScreenshot, "Horizontal panorama\0Lightfield\0DEBUG: Grid\0");
+#else
 					ImGui::Combo("Multi-screenshot type", &g_screenshotSettings.typeOfScreenshot, "Horizontal panorama\0Lightfield\0\0");
+#endif
 					ImGui::Combo("File type", &g_screenshotSettings.screenshotFileType, "Bmp\0Jpeg\0Png\0\0");
 					switch(g_screenshotSettings.typeOfScreenshot)
 					{
