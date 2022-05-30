@@ -156,9 +156,10 @@ static void displaySettings(reshade::api::effect_runtime *runtime)
 	}
 
 	ImGui::AlignTextToFramePadding();
+	const auto cameraData = (CameraToolsData*)g_dataFromCameraToolsBuffer;
 	if(ImGui::CollapsingHeader("Screenshot features", ImGuiTreeNodeFlags_DefaultOpen))
 	{
-		if(g_screenshotController.cameraToolsConnected() && nullptr!=g_dataFromCameraToolsBuffer)
+		if(g_screenshotController.cameraToolsConnected() && nullptr!=cameraData)
 		{
 			switch(g_screenshotController.getState())
 			{
@@ -184,14 +185,21 @@ static void displaySettings(reshade::api::effect_runtime *runtime)
 						break;
 						// others: ignore.
 					}
-					if(ImGui::Button("Start screenshot session"))
+					if(cameraData->cameraEnabled)
 					{
-						startScreenshotSession(false);
+						if(ImGui::Button("Start screenshot session"))
+						{
+							startScreenshotSession(false);
+						}
+						ImGui::SameLine();
+						if(ImGui::Button("Start test run"))
+						{
+							startScreenshotSession(true);
+						}
 					}
-					ImGui::SameLine();
-					if(ImGui::Button("Start test run"))
+					else
 					{
-						startScreenshotSession(true);
+						ImGui::Text("Camera disabled so no screenshot session can be started");
 					}
 				}
 				break;
@@ -227,10 +235,11 @@ static void displaySettings(reshade::api::effect_runtime *runtime)
 		else
 		{
 			// display camera info
-			const auto cameraData = (CameraToolsData*)g_dataFromCameraToolsBuffer;
 			std::ostringstream stringStream;
 			stringStream << std::fixed << std::setprecision(2) << cameraData->fov;
 			const std::string fovAsString = stringStream.str();
+			ImGui::Text(cameraData->cameraEnabled ? "Camera enabled" : "Camera disabled");
+			ImGui::Text(cameraData->cameraMovementLocked ? "Camera movement locked" : "Camera movement unlocked");
 			ImGui::InputText("FoV (degrees)", (char*)fovAsString.c_str(), fovAsString.length(), ImGuiInputTextFlags_ReadOnly);
 			ImGui::InputFloat3("Camera coordinates", cameraData->coordinates.values, "%.1f", ImGuiInputTextFlags_ReadOnly);
 			ImGui::InputFloat4("Camera look quaternion", cameraData->lookQuaternion.values, "%.3f", ImGuiInputTextFlags_ReadOnly);

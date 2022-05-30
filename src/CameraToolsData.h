@@ -101,7 +101,10 @@ struct Vec4
 
 struct CameraToolsData
 {
-	uint64_t reserved;
+	uint8_t cameraEnabled;					// 1 is enabled 0 is not enabled
+	uint8_t cameraMovementLocked;			// 1 is camera movement is locked, 0 is camera movement isn't locked.
+	uint8_t reserved1;
+	uint8_t reserved2;
 	float fov;								// in degrees
 	Vec3 coordinates;						// camera coordinates (x, y, z)
 	Vec4 lookQuaternion;					// camera look quaternion qx, qy, qz, qw
