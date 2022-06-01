@@ -157,27 +157,30 @@ static void displaySettings(reshade::api::effect_runtime *runtime)
 			switch(g_screenshotController.getState())
 			{
 			case ScreenshotControllerState::Off:
-				{	
-					ImGui::InputText("Screenshot output directory", g_screenshotSettings.screenshotFolder, 256);
-					ImGui::SliderInt("Number of frames to wait between steps", &g_screenshotSettings.numberOfFramesToWaitBetweenSteps, 1, 100);
+				{
+					ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.5f);
+						ImGui::AlignTextToFramePadding();
+						ImGui::InputText("Screenshot output directory", g_screenshotSettings.screenshotFolder, 256);
+						ImGui::SliderInt("Number of frames to wait between steps", &g_screenshotSettings.numberOfFramesToWaitBetweenSteps, 1, 100);
 #ifdef _DEBUG
-					ImGui::Combo("Multi-screenshot type", &g_screenshotSettings.typeOfScreenshot, "Horizontal panorama\0Lightfield\0DEBUG: Grid\0");
+						ImGui::Combo("Multi-screenshot type", &g_screenshotSettings.typeOfScreenshot, "Horizontal panorama\0Lightfield\0DEBUG: Grid\0");
 #else
-					ImGui::Combo("Multi-screenshot type", &g_screenshotSettings.typeOfScreenshot, "Horizontal panorama\0Lightfield\0\0");
+						ImGui::Combo("Multi-screenshot type", &g_screenshotSettings.typeOfScreenshot, "Horizontal panorama\0Lightfield\0\0");
 #endif
-					ImGui::Combo("File type", &g_screenshotSettings.screenshotFileType, "Bmp\0Jpeg\0Png\0\0");
-					switch(g_screenshotSettings.typeOfScreenshot)
-					{
-					case (int)ScreenshotType::HorizontalPanorama:
-						ImGui::SliderFloat("Total field of view in panorama (in degrees)", &g_screenshotSettings.pano_totalAngleDegrees, 30.0f, 360.0f, "%.1f");
-						ImGui::SliderFloat("Percentage of overlap between shots", &g_screenshotSettings.pano_overlapPercentagePerShot, 0.1f, 99.0f, "%.1f");
-						break;
-					case (int)ScreenshotType::Lightfield:
-						ImGui::SliderFloat("Distance between Lightfield shots", &g_screenshotSettings.lightField_distanceBetweenShots, 0.0f, 5.0f, "%.3f");
-						ImGui::SliderInt("Number of shots to take", &g_screenshotSettings.lightField_numberOfShotsToTake, 0, 60);
-						break;
-						// others: ignore.
-					}
+						ImGui::Combo("File type", &g_screenshotSettings.screenshotFileType, "Bmp\0Jpeg\0Png\0\0");
+						switch(g_screenshotSettings.typeOfScreenshot)
+						{
+						case (int)ScreenshotType::HorizontalPanorama:
+							ImGui::SliderFloat("Total field of view in panorama (in degrees)", &g_screenshotSettings.pano_totalAngleDegrees, 30.0f, 360.0f, "%.1f");
+							ImGui::SliderFloat("Percentage of overlap between shots", &g_screenshotSettings.pano_overlapPercentagePerShot, 0.1f, 99.0f, "%.1f");
+							break;
+						case (int)ScreenshotType::Lightfield:
+							ImGui::SliderFloat("Distance between Lightfield shots", &g_screenshotSettings.lightField_distanceBetweenShots, 0.0f, 5.0f, "%.3f");
+							ImGui::SliderInt("Number of shots to take", &g_screenshotSettings.lightField_numberOfShotsToTake, 0, 60);
+							break;
+							// others: ignore.
+						}
+					ImGui::PopItemWidth();
 					if(cameraData->cameraEnabled)
 					{
 						if(ImGui::Button("Start screenshot session"))
