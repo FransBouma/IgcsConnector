@@ -73,7 +73,7 @@ This information is read-only.
 
 ## Supported cameras
 
-The following cameras are supported with this addon: (All cameras are available on my [Patreon](https://patreon.com/Otis_Inf)
+The following cameras are supported with this addon: (All cameras are available on my [Patreon](https://patreon.com/Otis_Inf) )
 
 Camera tools | Version
 --|--
