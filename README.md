@@ -33,24 +33,12 @@ stitching software can auto-layout the shots properly. For a good panorama, it's
 
 The following controls are available:
 
-Screenshot output directory
-:	This is the root folder in which the shot folders are stored. Every session is stored in its own folder inside this folder, using the type and the date/time.
-
-Number of frames to wait between steps
-:	This is the # of frames the addon will wait between each shot. Set this to a fairly high number if the game you're taking shots of needs several frames
-to build up the final image, e.g. because of raytracing or TAA
-
-Multi-screenshot type
-:	This is set to Horizontal panorama in this case
-
-File type
-:	The output file type. By default this is jpeg (98% max quality). 
-
-Total field of view in panorama (in degrees)
-: 	The total angle over which the shots are taken. The end result is a shot with a view angle of this angle. 
-
-Percentage of overlap
-:	The higher value you specify the more shots are taken. 
+- **Screenshot output directory**: This is the root folder in which the shot folders are stored. Every session is stored in its own folder inside this folder, using the type and the date/time.
+- **Number of frames to wait between steps**: This is the # of frames the addon will wait between each shot. Set this to a fairly high number if the game you're taking shots of needs several frames to build up the final image, e.g. because of raytracing or TAA
+- **Multi-screenshot type**: This is set to Horizontal panorama in this case
+- **File type**: The output file type. By default this is jpeg (98% max quality). 
+- **Total field of view in panorama (in degrees)**: The total angle over which the shots are taken. The end result is a shot with a view angle of this angle. 
+- **Percentage of overlap**: The higher value you specify the more shots are taken. 
 
 #### Lightfield
 
@@ -59,25 +47,12 @@ on 3D displays like the ones from [Looking Glass Factory](https://lookingglassfa
 
 The following controls are available:
 
-Screenshot output directory
-:	This is the root folder in which the shot folders are stored. Every session is stored in its own folder inside this folder, using the type and the date/time.
-
-Number of frames to wait between steps
-:	This is the # of frames the addon will wait between each shot. Set this to a fairly high number if the game you're taking shots of needs several frames
-to build up the final image, e.g. because of raytracing or TAA
-
-Multi-screenshot type
-:	This is set to Lightfield in this case
-
-File type
-:	The output file type. By default this is jpeg (98% max quality). 
-
-Distance between Lightfield shots
-: 	This is the step size, in world units, for the camera to step for each shot. Some engines have coordinates which are close together so you need a larger value,
-others have coordinates stretched out over the world so you need small values. 
-
-Number of shots to take
-:	The number of shots to take in a session. 
+- **Screenshot output directory**: This is the root folder in which the shot folders are stored. Every session is stored in its own folder inside this folder, using the type and the date/time.
+- **Number of frames to wait between steps**: This is the # of frames the addon will wait between each shot. Set this to a fairly high number if the game you're taking shots of needs several frames to build up the final image, e.g. because of raytracing or TAA
+- **Multi-screenshot type**: This is set to Lightfield in this case
+- **File type**: The output file type. By default this is jpeg (98% max quality). 
+- **Distance between Lightfield shots**: This is the step size, in world units, for the camera to step for each shot. Some engines have coordinates which are close together so you need a larger value, others have coordinates stretched out over the world so you need small values. 
+- **Number of shots to take**: The number of shots to take in a session. 
 
 #### Starting the session
 When you enable the camera in the camera tools, you'll see two buttons: *Start screenshot session* and *Start test run*. The *Start test run* button will
