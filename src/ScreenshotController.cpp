@@ -428,7 +428,6 @@ void ScreenshotController::moveCameraForDebugGrid(int shotCounter, bool end)
 		return;
 	}
 
-
 	float horizontalStep = 0.0f;
 	float verticalStep = 0.0f;
 	if(end)

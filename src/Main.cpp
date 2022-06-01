@@ -148,13 +148,6 @@ static void startScreenshotSession(bool isTestRun)
 
 static void displaySettings(reshade::api::effect_runtime *runtime)
 {
-	if(ImGui::CollapsingHeader("General info and help"))
-	{
-		ImGui::PushTextWrapPos();
-		ImGui::TextUnformatted("Help text");
-		ImGui::PopTextWrapPos();
-	}
-
 	ImGui::AlignTextToFramePadding();
 	const auto cameraData = (CameraToolsData*)g_dataFromCameraToolsBuffer;
 	if(ImGui::CollapsingHeader("Screenshot features", ImGuiTreeNodeFlags_DefaultOpen))
