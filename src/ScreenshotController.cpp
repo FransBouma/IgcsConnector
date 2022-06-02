@@ -444,7 +444,7 @@ void ScreenshotController::moveCameraForDebugGrid(int shotCounter, bool end)
 	}
 	// we don't know the movement speed, so we pass the distance to the camera, and the camere has to divide by movement speed so it's independent of movement speed.
 	// we don't move up/down so we pass in 0. We don't change the fov and the step is relative to the current camera location.
-	_igcs_MoveCameraMultishotFunc(horizontalStep, verticalStep, 30.0f, true);
+	_igcs_MoveCameraMultishotFunc(horizontalStep, verticalStep, (shotCounter % 5) * 10.0f, true);
 }
 
 
