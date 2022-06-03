@@ -75,6 +75,7 @@ The following cameras are supported with this addon: (All cameras are available 
 
 Camera tools | Version
 --|--
+Cyberpunk 2077 | v1.0.18
 Elden Ring | v1.0.9
 Universal Unreal Engine Unlocker | v4.3+
 The Witcher 3: Wild Hunt | v1.0.5
