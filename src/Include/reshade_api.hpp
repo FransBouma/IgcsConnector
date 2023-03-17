@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2021 Patrick Mours
- * License: https://github.com/crosire/reshade#license
+ * SPDX-License-Identifier: BSD-3-Clause OR MIT
  */
 
 #pragma once
@@ -48,12 +48,12 @@ namespace reshade::api
 		/// This can be used to force ReShade to render effects at a certain point during the frame to e.g. avoid effects being applied to user interface elements of the application.
 		/// </summary>
 		/// <remarks>
-		/// The width and height of the specified render target have to match those reported by <see cref="effect_runtime::get_screenshot_width_and_height"/>!
 		/// The resource the render target views point to has to be in the <see cref="resource_usage::render_target"/> state.
+		/// This call may modify current state on the command list (pipeline, render targets, descriptor sets, ...), so it may be necessary for an add-on to backup and restore state around it if the application does not bind all state again afterwards already.
 		/// </remarks>
 		/// <param name="cmd_list">Command list to add effect rendering commands to.</param>
-		/// <param name="rtv">Render target view to use for passes that write to the back buffer with <c>SRGBWriteEnabled</c> state set to <c>false</c>.</param>
-		/// <param name="rtv_srgb">Render target view to use for passes that write to the back buffer with <c>SRGBWriteEnabled</c> state set to <c>true</c>, or zero in which case the view from <paramref name="rtv"/> is used.</param>
+		/// <param name="rtv">Render target view to use for passes that write to the back buffer with <c>SRGBWriteEnabled</c> state set to <see langword="false"/>.</param>
+		/// <param name="rtv_srgb">Render target view to use for passes that write to the back buffer with <c>SRGBWriteEnabled</c> state set to <see langword="true"/>, or zero in which case the view from <paramref name="rtv"/> is used.</param>
 		virtual void render_effects(command_list *cmd_list, resource_view rtv, resource_view rtv_srgb = { 0 }) = 0;
 
 		/// <summary>
@@ -63,8 +63,7 @@ namespace reshade::api
 		virtual bool capture_screenshot(uint8_t *pixels) = 0;
 
 		/// <summary>
-		/// Gets the current buffer dimensions of the swap chain as used with effect rendering.
-		/// The returned values are equivalent to <c>BUFFER_WIDTH</c> and <c>BUFFER_HEIGHT</c> in ReShade FX.
+		/// Gets the current buffer dimensions of the swap chain.
 		/// </summary>
 		virtual void get_screenshot_width_and_height(uint32_t *out_width, uint32_t *out_height) const = 0;
 
@@ -358,7 +357,7 @@ namespace reshade::api
 		/// <param name="length">Pointer to an integer that contains the size of the string buffer and upon completion is set to the actual length of the string.</param>
 		virtual void get_texture_variable_name(effect_texture_variable variable, char *name, size_t *length) const = 0;
 		template <size_t SIZE>
-		inline  void get_texture_variable_name(effect_texture_variable variable,char(&name)[SIZE]) const {
+		inline  void get_texture_variable_name(effect_texture_variable variable, char(&name)[SIZE]) const {
 			size_t length = SIZE;
 			get_texture_variable_name(variable, name, &length);
 		}
@@ -437,8 +436,8 @@ namespace reshade::api
 		/// The resource the shader resource views point to has to be in the <see cref="resource_usage::shader_resource"/> state at the time <see cref="render_effects"/> is executed.
 		/// </remarks>
 		/// <param name="semantic">ReShade FX semantic to filter textures to update by (<c>texture name : SEMANTIC</c>).</param>
-		/// <param name="srv">Shader resource view to use for samplers with <c>SRGBTexture</c> state set to <c>false</c>.</param>
-		/// <param name="srv_srgb">Shader resource view to use for samplers with <c>SRGBTexture</c> state set to <c>true</c>, or zero in which case the view from <paramref name="srv"/> is used.</param>
+		/// <param name="srv">Shader resource view to use for samplers with <c>SRGBTexture</c> state set to <see langword="false"/>.</param>
+		/// <param name="srv_srgb">Shader resource view to use for samplers with <c>SRGBTexture</c> state set to <see langword="true"/>, or zero in which case the view from <paramref name="srv"/> is used.</param>
 		virtual void update_texture_bindings(const char *semantic, resource_view srv, resource_view srv_srgb = { 0 }) = 0;
 
 		/// <summary>
@@ -535,10 +534,10 @@ namespace reshade::api
 		/// <param name="technique">Opaque handle to the technique.</param>
 		virtual bool get_technique_state(effect_technique technique) const = 0;
 		/// <summary>
-		/// Enables or disable the specified <paramref name="technique"/>.
+		/// Enables or disables the specified <paramref name="technique"/>.
 		/// </summary>
 		/// <param name="technique">Opaque handle to the technique.</param>
-		/// <param name="enabled"><see langword="true"/> to enable the technique, or <see langword="false"/> to disable it.</param>
+		/// <param name="enabled">Set to <see langword="true"/> to enable the technique, or <see langword="false"/> to disable it.</param>
 		virtual void set_technique_state(effect_technique technique, bool enabled) = 0;
 
 		/// <summary>
@@ -559,5 +558,107 @@ namespace reshade::api
 		/// <param name="name">Name of the definition.</param>
 		/// <param name="value">Value of the definition.</param>
 		virtual void set_preprocessor_definition(const char *name, const char *value) = 0;
+
+		/// <summary>
+		/// Applies a <paramref name="technique"/> to the specified render targets (regardless of the state of this technique).
+		/// </summary>
+		/// <remarks>
+		/// The width and height of the specified render target should match those used to render all other effects!
+		/// The resource the render target views point to has to be in the <see cref="resource_usage::render_target"/> state.
+		/// This call may modify current state on the command list (pipeline, render targets, descriptor sets, ...), so it may be necessary for an add-on to backup and restore state around it if the application does not bind all state again afterwards already.
+		/// </remarks>
+		/// <param name="technique">Opaque handle to the technique.</param>
+		/// <param name="cmd_list">Command list to add effect rendering commands to.</param>
+		/// <param name="rtv">Render target view to use for passes that write to the back buffer with <c>SRGBWriteEnabled</c> state set to <see langword="false"/>.</param>
+		/// <param name="rtv_srgb">Render target view to use for passes that write to the back buffer with <c>SRGBWriteEnabled</c> state set to <see langword="true"/>, or zero in which case the view from <paramref name="rtv"/> is used.</param>
+		virtual void render_technique(effect_technique technique, command_list *cmd_list, resource_view rtv, resource_view rtv_srgb = { 0 }) = 0;
+
+		/// <summary>
+		/// Gets whether effects are enabled or disabled.
+		/// </summary>
+		virtual bool get_effects_state() const = 0;
+		/// <summary>
+		/// Enables or disables all effects.
+		/// </summary>
+		/// <param name="enabled">Set to <see langword="true"/> to enable effects, or <see langword="false"/> to disable them.</param>
+		virtual void set_effects_state(bool enabled) = 0;
+
+		/// <summary>
+		/// Gets the file path to the currently active preset.
+		/// </summary>
+		/// <param name="name">Pointer to a string buffer that is filled with the file path to the preset.</param>
+		/// <param name="length">Pointer to an integer that contains the size of the string buffer and upon completion is set to the actual length of the string.</param>
+		virtual void get_current_preset_path(char *path, size_t *length) const = 0;
+		template <size_t SIZE>
+		inline  void get_current_preset_path(char(&path)[SIZE]) const {
+			size_t length = SIZE;
+			get_current_preset_path(path, &length);
+		}
+		/// <summary>
+		/// Saves the currently active preset and then switches to the specified new preset.
+		/// </summary>
+		/// <param name="path">File path to the preset to switch to.</param>
+		virtual void set_current_preset_path(const char *path) = 0;
+
+		/// <summary>
+		/// Changes the rendering order of loaded techniques to that of the specified technique list.
+		/// </summary>
+		/// <param name="count">Number of handles in the technique list.</param>
+		/// <param name="techniques">Array of techniques in the order they should be rendered in.</param>
+		virtual void reorder_techniques(size_t count, const effect_technique *techniques) = 0;
+
+		/// <summary>
+		/// Makes ReShade block any keyboard and mouse input from reaching the game for the duration of the next frame.
+		/// Call this every frame for as long as input should be blocked. This can be used to ensure input is only applied to overlays created in a <see cref="addon_event::reshade_overlay"/> callback.
+		/// </summary>
+		virtual void block_input_next_frame();
+
+		/// <summary>
+		/// Gets the virtual key code of the last key that was pressed.
+		/// </summary>
+		virtual uint32_t last_key_pressed() const = 0;
+		/// <summary>
+		/// Gets the virtual key code of the last key that was released.
+		/// </summary>
+		virtual uint32_t last_key_released() const = 0;
+
+		/// <summary>
+		/// Gets the effect file name of a uniform <paramref name="variable"/>.
+		/// </summary>
+		/// <param name="variable">Opaque handle to the uniform variable.</param>
+		/// <param name="effect_name">Pointer to a string buffer that is filled with the effect file name of the uniform variable.</param>
+		/// <param name="length">Pointer to an integer that contains the size of the string buffer and upon completion is set to the actual length of the string.</param>
+		virtual void get_uniform_variable_effect_name(effect_uniform_variable variable, char *effect_name, size_t *length) const = 0;
+		template <size_t SIZE>
+		inline  void get_uniform_variable_effect_name(effect_uniform_variable variable, char(&effect_name)[SIZE]) const {
+			size_t length = SIZE;
+			get_uniform_variable_effect_name(variable, effect_name, &length);
+		}
+
+		/// <summary>
+		/// Gets the effect file name of a texture <paramref name="variable"/>.
+		/// </summary>
+		/// <param name="variable">Opaque handle to the texture variable.</param>
+		/// <param name="effect_name">Pointer to a string buffer that is filled with the effect file name of the texture variable.</param>
+		/// <param name="length">Pointer to an integer that contains the size of the string buffer and upon completion is set to the actual length of the string.</param>
+		virtual void get_texture_variable_effect_name(effect_texture_variable variable, char *effect_name, size_t *length) const = 0;
+		template <size_t SIZE>
+		inline  void get_texture_variable_effect_name(effect_texture_variable variable, char(&effect_name)[SIZE]) const {
+			size_t length = SIZE;
+			get_texture_variable_effect_name(variable, effect_name, &length);
+		}
+
+		/// <summary>
+		/// Gets the effect file name of a <paramref name="technique"/>.
+		/// </summary>
+		/// <param name="technique">Opaque handle to the technique.</param>
+		/// <param name="effect_name">Pointer to a string buffer that is filled with the effect file name of the technique.</param>
+		/// <param name="length">Pointer to an integer that contains the size of the string buffer and upon completion is set to the actual length of the string.</param>
+		virtual void get_technique_effect_name(effect_technique technique, char *effect_name, size_t *length) const = 0;
+		template <size_t SIZE>
+		inline  void get_technique_effect_name(effect_technique technique, char(&effect_name)[SIZE]) const {
+			size_t length = SIZE;
+			get_technique_effect_name(technique, effect_name, &length);
+		}
 	};
 }

@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2021 Patrick Mours
- * License: https://github.com/crosire/reshade#license
+ * SPDX-License-Identifier: BSD-3-Clause OR MIT
  */
 
 #pragma once
@@ -46,7 +46,7 @@ namespace reshade::api
 	{
 		/// <summary>
 		/// Specifies whether compute shaders are supported.
-		/// If this feature is not present, the <see cref="pipeline_stage::compute_shader"/> stage must not be used.
+		/// If this feature is not present, the <see cref="pipeline_stage::compute_shader"/> stage and <see cref="command_list::dispatch"/> must not be used.
 		/// </summary>
 		compute_shader = 1,
 		/// <summary>
@@ -91,7 +91,7 @@ namespace reshade::api
 		bind_render_targets_and_depth_stencil,
 		/// <summary>
 		/// Specifies whther more than one viewport is supported.
-		/// If this feature is not present, the "first" and "count" parameters to <see cref="command_list::bind_viewports"/> must be 0 and 1.
+		/// If this feature is not present, the "first" and "count" parameters to <see cref="command_list::bind_viewports"/> and <see cref="command_list::bind_scissor_rects"/> must be 0 and 1.
 		/// </summary>
 		multi_viewport,
 		/// <summary>
@@ -179,7 +179,7 @@ namespace reshade::api
 		/// For <see cref="device"/> this will be be a pointer to a 'IDirect3DDevice9', 'ID3D10Device', 'ID3D11Device' or 'ID3D12Device' object or a 'HGLRC' or 'VkDevice' handle.<br/>
 		/// For <see cref="command_list"/> this will be a pointer to a 'ID3D11DeviceContext' (when recording), 'ID3D11CommandList' (when executing) or 'ID3D12GraphicsCommandList' object or a 'VkCommandBuffer' handle.<br/>
 		/// For <see cref="command_queue"/> this will be a pointer to a 'ID3D11DeviceContext' or 'ID3D12CommandQueue' object or a 'VkQueue' handle.<br/>
-		/// For <see cref="effect_runtime"/> this will be a pointer to a 'IDirect3DSwapChain9' or 'IDXGISwapChain' object or a 'HDC' or 'VkSwapchainKHR' handle.
+		/// For <see cref="swapchain"/> this will be a pointer to a 'IDirect3DSwapChain9' or 'IDXGISwapChain' object or a 'HDC' or 'VkSwapchainKHR' handle.
 		/// </remarks>
 		virtual uint64_t get_native() const = 0;
 
@@ -298,6 +298,9 @@ namespace reshade::api
 		/// <summary>
 		/// Gets the handle to the underlying resource the specified resource <paramref name="view"/> was created for.
 		/// </summary>
+		/// <remarks>
+		/// Resource views may be created without a resource in D3D12, which is used to initialize a null descriptor (reading zeroes, writes are discarded). This may therefore return zero for such views.
+		/// </remarks>
 		virtual resource get_resource_from_view(resource_view view) const = 0;
 		/// <summary>
 		/// Gets the description of the specified resource view.
@@ -542,9 +545,7 @@ namespace reshade::api
 		/// Binds individual render target and depth-stencil resource views.
 		/// This must not be called between <see cref="begin_render_pass"/> and <see cref="end_render_pass"/>.
 		/// </summary>
-		/// <remarks>
-		/// This is not supported (and will do nothing) in Vulkan.
-		/// </remarks>
+		/// <seealso cref="device_caps::bind_render_targets_and_depth_stencil"/>
 		/// <param name="count">Number of render target views to bind.</param>
 		/// <param name="rtvs">Pointer to an array of render target views to bind.</param>
 		/// <param name="dsv">Depth-stencil view to bind, or zero to bind none.</param>
@@ -558,14 +559,14 @@ namespace reshade::api
 		virtual void bind_pipeline(pipeline_stage stages, pipeline pipeline) = 0;
 		/// <summary>
 		/// Updates the specfified pipeline <paramref name="state"/> to the specified <paramref name="value"/>.
-		/// This is only valid for states that have been listed in the dynamic states provided at creation of the currently bound pipeline state object.
+		/// This is only valid for states that have been listed in the dynamic states provided at creation of the currently bound pipeline state object (<see cref="pipeline_subobject_type::dynamic_pipeline_states"/>).
 		/// </summary>
 		/// <param name="state">Pipeline state to update.</param>
 		/// <param name="value">Value to update the pipeline state to.</param>
 		inline  void bind_pipeline_state(dynamic_state state, uint32_t value) { bind_pipeline_states(1, &state, &value); }
 		/// <summary>
 		/// Updates the specfified pipeline <paramref name="states"/> to the specified <paramref name="values"/>.
-		/// This is only valid for states that have been listed in the dynamic states provided at creation of the currently bound pipeline state object.
+		/// This is only valid for states that have been listed in the dynamic states provided at creation of the currently bound pipeline state object (<see cref="pipeline_subobject_type::dynamic_pipeline_states"/>).
 		/// </summary>
 		/// <param name="count">Number of pipeline states to update.</param>
 		/// <param name="states">Pointer to an array of pipeline states to update.</param>
@@ -574,15 +575,17 @@ namespace reshade::api
 		/// <summary>
 		/// Binds an array of viewports to the rasterizer stage.
 		/// </summary>
+		/// <seealso cref="device_caps::multi_viewport"/>
 		/// <param name="first">Index of the first viewport to bind. In D3D9, D3D10, D3D11 and D3D12 this has to be 0.</param>
-		/// <param name="count">Number of viewports to bind. In D3D9 this has to be 1.</param>
+		/// <param name="count">Number of viewports to bind.</param>
 		/// <param name="viewports">Pointer to an array of viewports.</param>
 		virtual void bind_viewports(uint32_t first, uint32_t count, const viewport *viewports) = 0;
 		/// <summary>
 		/// Binds an array of scissor rectangles to the rasterizer stage.
 		/// </summary>
+		/// <seealso cref="device_caps::multi_viewport"/>
 		/// <param name="first">Index of the first scissor rectangle to bind. In D3D9, D3D10, D3D11 and D3D12 this has to be 0.</param>
-		/// <param name="count">Number of scissor rectangles to bind. In D3D9 this has to be 1.</param>
+		/// <param name="count">Number of scissor rectangles to bind.</param>
 		/// <param name="rects">Pointer to an array of scissor rectangles.</param>
 		virtual void bind_scissor_rects(uint32_t first, uint32_t count, const rect *rects) = 0;
 
@@ -590,6 +593,7 @@ namespace reshade::api
 		/// Directly updates constant values in the specified shader pipeline stages.
 		/// <para>In D3D9 this updates the values of uniform registers, in D3D10/11 and OpenGL the constant buffer specified in the pipeline layout, in D3D12 it sets root constants and in Vulkan push constants.</para>
 		/// </summary>
+		/// <seealso cref="device_caps::partial_push_constant_updates"/>
 		/// <param name="stages">Shader stages that will use the updated constants.</param>
 		/// <param name="layout">Pipeline layout that describes where the constants are located.</param>
 		/// <param name="param">Layout parameter index of the constant range in the pipeline <paramref name="layout"/> (root parameter index in D3D12).</param>
@@ -600,6 +604,7 @@ namespace reshade::api
 		/// <summary>
 		/// Directly binds a temporary descriptor set for the specfified shader pipeline stage and updates with an array of descriptors.
 		/// </summary>
+		/// <seealso cref="device_caps::partial_push_descriptor_updates"/>
 		/// <param name="stages">Shader stages that will use the updated descriptors.</param>
 		/// <param name="layout">Pipeline layout that describes the descriptors.</param>
 		/// <param name="param">Layout parameter index of the descriptor set in the pipeline <paramref name="layout"/> (root parameter index in D3D12, descriptor set index in Vulkan).</param>
@@ -656,11 +661,14 @@ namespace reshade::api
 		/// <param name="buffers">Pointer to an array of buffer resources. These resources must have been created with the <see cref="resource_usage::stream_output"/> usage.</param>
 		/// <param name="offsets">Pointer to an array of offset values, one for each buffer. Each offset is the number of bytes from the start of the buffer to the first element to write to.</param>
 		/// <param name="max_sizes">Optional pointer to an array of size values, one for each buffer. Can be <see langword="nullptr"/> or have elements set to UINT64_MAX to use the entire buffer.</param>
-		virtual void bind_stream_output_buffers(uint32_t first, uint32_t count, const api::resource *buffers, const uint64_t *offsets, const uint64_t *max_sizes) = 0;
+		/// <param name="counter_buffers">Pointer to an array of counter buffer resources. These resources must have been created with the <see cref="resource_usage::stream_output"/> usage.</param>
+		/// <param name="counter_offsets">Pointer to an array of counter offset values, one for each counter buffer. Each offset is the number of bytes from the start of the counter buffer to the first element to write to.</param>
+		virtual void bind_stream_output_buffers(uint32_t first, uint32_t count, const api::resource *buffers, const uint64_t *offsets, const uint64_t *max_sizes, const api::resource *counter_buffers, const uint64_t *counter_offsets) = 0;
 
 		/// <summary>
 		/// Draws non-indexed primitives.
 		/// </summary>
+		/// <seealso cref="device_caps::draw_instanced"/>
 		/// <param name="vertex_count">Number of vertices to draw.</param>
 		/// <param name="instance_count">Number of instances to draw. In D3D9 this has to be 1.</param>
 		/// <param name="first_vertex">Index of the first vertex.</param>
@@ -669,6 +677,7 @@ namespace reshade::api
 		/// <summary>
 		/// Draws indexed primitives.
 		/// </summary>
+		/// <seealso cref="device_caps::draw_instanced"/>
 		/// <param name="index_count">Number of indices read from the index buffer for each instance.</param>
 		/// <param name="instance_count">Number of instances to draw. In D3D9 this has to be 1.</param>
 		/// <param name="first_index">Location of the first index read from the index buffer.</param>
@@ -678,9 +687,7 @@ namespace reshade::api
 		/// <summary>
 		/// Performs a compute shader dispatch.
 		/// </summary>
-		/// <remarks>
-		/// This is not supported (and will do nothing) in D3D9 and D3D10.
-		/// </remarks>
+		/// <seealso cref="device_caps::compute_shader"/>
 		/// <param name="group_count_x">Number of thread groups dispatched in the x direction.</param>
 		/// <param name="group_count_y">Number of thread groups dispatched in the y direction.</param>
 		/// <param name="group_count_z">Number of thread groups dispatched in the z direction.</param>
@@ -688,9 +695,7 @@ namespace reshade::api
 		/// <summary>
 		/// Executes indirect draw or dispatch commands.
 		/// </summary>
-		/// <remarks>
-		/// This is not supported (and will do nothing) in D3D9 and D3D10.
-		/// </remarks>
+		/// <seealso cref="device_caps::draw_or_dispatch_indirect"/>
 		/// <param name="type">Specifies whether this is an indirect draw, indexed draw or dispatch command.</param>
 		/// <param name="buffer">Buffer resource that contains command arguments.</param>
 		/// <param name="offset">Offset (in bytes) from the start of the argument buffer to the first argument to use.</param>
@@ -712,10 +717,10 @@ namespace reshade::api
 		/// Copies a linear memory region from the <paramref name="source"/> buffer to the <paramref name="dest"/>ination buffer.
 		/// </summary>
 		/// <remarks>
-		/// This is not supported (and will do nothing) in D3D9.
 		/// The <paramref name="source"/> resource has to be in the <see cref="resource_usage::copy_source"/> state.
 		/// The <paramref name="dest"/>ination resource has to be in the <see cref="resource_usage::copy_dest"/> state.
 		/// </remarks>
+		/// <seealso cref="device_caps::copy_buffer_region"/>
 		/// <param name="source">Buffer resource to copy from.</param>
 		/// <param name="source_offset">Offset (in bytes) into the <paramref name="source"/> buffer to start copying at.</param>
 		/// <param name="dest">Buffer resource to copy to.</param>
@@ -729,6 +734,7 @@ namespace reshade::api
 		/// The <paramref name="source"/> resource has to be in the <see cref="resource_usage::copy_source"/> state.
 		/// The <paramref name="dest"/>ination resource has to be in the <see cref="resource_usage::copy_dest"/> state.
 		/// </remarks>
+		/// <seealso cref="device_caps::copy_buffer_to_texture"/>
 		/// <param name="source">Buffer resource to copy from.</param>
 		/// <param name="source_offset">Offset (in bytes) into the <paramref name="source"/> buffer to start copying at.</param>
 		/// <param name="row_length">Number of pixels from one row to the next (in the buffer), or zero if data is tightly packed.</param>
@@ -744,6 +750,7 @@ namespace reshade::api
 		/// The <paramref name="source"/> resource has to be in the <see cref="resource_usage::copy_source"/> state.
 		/// The <paramref name="dest"/>ination resource has to be in the <see cref="resource_usage::copy_dest"/> state.
 		/// </remarks>
+		/// <seealso cref="device_caps::blit"/>
 		/// <param name="source">Texture resource to copy from.</param>
 		/// <param name="source_subresource">Index of the subresource of the <paramref name="source"/> texture to copy from.</param>
 		/// <param name="source_box">Optional 3D box (or <see langword="nullptr"/> to reference the entire subresource) that defines the region in the <paramref name="source"/> texture to blit from.</param>
@@ -759,6 +766,7 @@ namespace reshade::api
 		/// The <paramref name="source"/> resource has to be in the <see cref="resource_usage::copy_source"/> state.
 		/// The <paramref name="dest"/>ination resource has to be in the <see cref="resource_usage::copy_dest"/> state.
 		/// </remarks>
+		/// <seealso cref="device_caps::copy_buffer_to_texture"/>
 		/// <param name="source">Texture resource to copy from.</param>
 		/// <param name="source_subresource">Index of the subresource of the <paramref name="source"/> texture to copy from.</param>
 		/// <param name="source_box">Optional 3D box (or <see langword="nullptr"/> to reference the entire subresource) that defines the region in the <paramref name="source"/> texture to copy from.</param>
@@ -774,14 +782,15 @@ namespace reshade::api
 		/// The <paramref name="source"/> resource has to be in the <see cref="resource_usage::resolve_source"/> state.
 		/// The <paramref name="dest"/>ination resource has to be in the <see cref="resource_usage::resolve_dest"/> state.
 		/// </remarks>
+		/// <seealso cref="device_caps::resolve_region"/>
 		/// <param name="source">Texture resource to resolve from.</param>
 		/// <param name="source_subresource">Index of the subresource of the <paramref name="source"/> texture to resolve from.</param>
-		/// <param name="source_box">Optional 3D box (or <see langword="nullptr"/> to reference the entire subresource) that defines the region in the <paramref name="source"/> texture to resolve. In D3D10 and D3D11 this has to be <see langword="nullptr"/>.</param>
+		/// <param name="source_box">Optional 3D box (or <see langword="nullptr"/> to reference the entire subresource) that defines the region in the <paramref name="source"/> texture to resolve.</param>
 		/// <param name="dest">Texture resource to resolve to.</param>
 		/// <param name="dest_subresource">Index of the subresource of the <paramref name="dest"/>ination texture to resolve to.</param>
-		/// <param name="dest_x">Optional X offset (in texels) that defines the region in the <paramref name="dest"/>ination texture to resolve to. In D3D10 and D3D11 this has to be zero.</param>
-		/// <param name="dest_y">Optional Y offset (in texels) that defines the region in the <paramref name="dest"/>ination texture to resolve to. In D3D10 and D3D11 this has to be zero.</param>
-		/// <param name="dest_z">Optional Z offset (in texels) that defines the region in the <paramref name="dest"/>ination texture to resolve to. In D3D10 and D3D11 this has to be zero.</param>
+		/// <param name="dest_x">Optional X offset (in texels) that defines the region in the <paramref name="dest"/>ination texture to resolve to.</param>
+		/// <param name="dest_y">Optional Y offset (in texels) that defines the region in the <paramref name="dest"/>ination texture to resolve to.</param>
+		/// <param name="dest_z">Optional Z offset (in texels) that defines the region in the <paramref name="dest"/>ination texture to resolve to.</param>
 		/// <param name="format">Format of the resource data.</param>
 		virtual void resolve_texture_region(resource source, uint32_t source_subresource, const subresource_box *source_box, resource dest, uint32_t dest_subresource, int32_t dest_x, int32_t dest_y, int32_t dest_z, format format) = 0;
 
@@ -833,7 +842,7 @@ namespace reshade::api
 
 		/// <summary>
 		/// Generates the lower mipmap levels for the specified shader resource view.
-		/// Uses the largest mipmap level of the view to recursively generate the lower levels of the mip and stops with the smallest level that is specified by the view.
+		/// Uses the largest mipmap level of the view to recursively generate the lower levels of the mipmap chain and stops with the smallest level that is specified by the view.
 		/// </summary>
 		/// <remarks>
 		/// This will invalidate all previous descriptor bindings, which will need to be reset by calls to <see cref="bind_descriptor_set"/> or <see cref="push_descriptors"/>.
@@ -857,11 +866,12 @@ namespace reshade::api
 		/// <param name="index">Index of the query in the pool.</param>
 		virtual void end_query(query_pool pool, query_type type, uint32_t index) = 0;
 		/// <summary>
-		/// Copy the results of queries in a query pool to a buffer resource.
+		/// Copies the results of queries in a query pool to a buffer resource.
 		/// </summary>
 		/// <remarks>
 		/// The <paramref name="dest"/>ination resource has to be in the <see cref="resource_usage::copy_dest"/> state.
 		/// </remarks>
+		/// <seealso cref="device_caps::copy_query_pool_results"/>
 		/// <param name="pool">Query pool that manages the results of the queries.</param>
 		/// <param name="type">Type of the queries to copy.</param>
 		/// <param name="first">Index of the first query in the pool to copy the result from.</param>
@@ -951,6 +961,34 @@ namespace reshade::api
 	};
 
 	/// <summary>
+	/// Describes a swap chain and its back buffer resources.
+	/// </summary>
+	struct swapchain_desc
+	{
+		/// <summary>
+		/// Description of the back buffer resources.
+		/// </summary>
+		resource_desc back_buffer;
+
+		/// <summary>
+		/// Number of back buffer resources in the swap chain.
+		/// </summary>
+		uint32_t back_buffer_count = 0;
+
+		/// <summary>
+		/// Defines how the back buffers should be swapped when a present occurs.
+		/// <para>Depending on the render API this can be a 'D3DSWAPEFFECT', 'DXGI_SWAP_EFFECT', 'WGL_SWAP_METHOD_ARB' or 'VkPresentModeKHR' value.</para>
+		/// </summary>
+		uint32_t present_mode = 0;
+
+		/// <summary>
+		/// Swap chain creation flags.
+		/// <para>Depending on the render API this can be a 'D3DPRESENT', 'DXGI_PRESENT', 'PFD_*' or 'VkSwapchainCreateFlagsKHR' value.</para>
+		/// </summary>
+		uint32_t present_flags = 0;
+	};
+
+	/// <summary>
 	/// A swap chain, used to present images to the screen.
 	/// <para>Functionally equivalent to a 'IDirect3DSwapChain9', 'IDXGISwapChain', 'HDC' or 'VkSwapchainKHR'.</para>
 	/// </summary>
@@ -959,7 +997,7 @@ namespace reshade::api
 		/// <summary>
 		/// Gets the window handle of the window this swap chain was created with, or <see langword="nullptr"/> if this is an offscreen swap chain.
 		/// </summary>
-		virtual   void * get_hwnd() const = 0;
+		virtual void *get_hwnd() const = 0;
 
 		/// <summary>
 		/// Gets the back buffer resource at the specified <paramref name="index"/> in this swap chain.

@@ -137,8 +137,8 @@
       <EnableUAC>false</EnableUAC>
     </Link>
     <PostBuildEvent>
-      <Command>copy /y $(TargetPath) "C:\Users\frans.SD\Documents\Unreal Projects\ShooterGame426\Shipping426\WindowsNoEditor\ShooterGame426\Binaries\Win64"
-copy /y $(TargetDir)$(TargetName).pdb "C:\Users\frans.SD\Documents\Unreal Projects\ShooterGame426\Shipping426\WindowsNoEditor\ShooterGame426\Binaries\Win64"</Command>
+      <Command>
+      </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -163,9 +163,12 @@ copy /y $(TargetDir)$(TargetName).pdb "C:\Users\frans.SD\Documents\Unreal Projec
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="CameraToolsData.h" />
+    <ClInclude Include="CDataFile.h" />
     <ClInclude Include="ConstantsEnums.h" />
+    <ClInclude Include="EffectState.h" />
     <ClInclude Include="fpng.h" />
     <ClInclude Include="OverlayControl.h" />
+    <ClInclude Include="ReshadeStateSnapshot.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="ScreenshotController.h" />
     <ClInclude Include="ScreenshotSettings.h" />
@@ -174,9 +177,12 @@ copy /y $(TargetDir)$(TargetName).pdb "C:\Users\frans.SD\Documents\Unreal Projec
     <ClInclude Include="Utils.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="CDataFile.cpp" />
+    <ClCompile Include="EffectState.cpp" />
     <ClCompile Include="fpng.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="OverlayControl.cpp" />
+    <ClCompile Include="ReshadeStateSnapshot.cpp" />
     <ClCompile Include="ScreenshotController.cpp" />
     <ClCompile Include="Utils.cpp" />
   </ItemGroup>

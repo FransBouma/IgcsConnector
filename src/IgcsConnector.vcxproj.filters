@@ -31,6 +31,15 @@
     <ClInclude Include="fpng.h">
       <Filter>Include</Filter>
     </ClInclude>
+    <ClInclude Include="ReshadeStateSnapshot.h">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="CDataFile.h">
+      <Filter>Code</Filter>
+    </ClInclude>
+    <ClInclude Include="EffectState.h">
+      <Filter>Include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Code">
@@ -60,6 +69,15 @@
       <Filter>Code</Filter>
     </ClCompile>
     <ClCompile Include="fpng.cpp">
+      <Filter>Code</Filter>
+    </ClCompile>
+    <ClCompile Include="ReshadeStateSnapshot.cpp">
+      <Filter>Code</Filter>
+    </ClCompile>
+    <ClCompile Include="CDataFile.cpp">
+      <Filter>Code</Filter>
+    </ClCompile>
+    <ClCompile Include="EffectState.cpp">
       <Filter>Code</Filter>
     </ClCompile>
   </ItemGroup>

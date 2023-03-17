@@ -36,17 +36,22 @@
 
 #include "stdafx.h"
 #include <imgui.h>
+#include <reshade.hpp>
 #include <iomanip>
 #include <ios>
 #include <Psapi.h>
-#include <reshade.hpp>
 #include <sstream>
 #include <string>
+#include <unordered_set>
+#include <unordered_map>
+#include <vector>
 
 #include "CameraToolsData.h"
+#include "CDataFile.h"
 #include "ScreenshotController.h"
 #include "ScreenshotSettings.h"
 #include "OverlayControl.h"
+#include "ReshadeStateSnapshot.h"
 
 using namespace reshade::api;
 
@@ -63,11 +68,18 @@ static LPBYTE g_dataFromCameraToolsBuffer = nullptr;		// 8192 bytes buffer
 static ScreenshotSettings g_screenshotSettings;
 static ScreenshotController g_screenshotController;
 
+
+// testcode
+static ReshadeStateSnapshot g_snapshotOne;
+static ReshadeStateSnapshot g_snapshotTwo;
+static ReshadeStateSnapshot g_snapshotThree;
+static std::string g_presetFilename;
+
 /// <summary>
 /// Entry point for IGCS camera tools. Call this to initialize the buffers. Obtain the buffers using the getDataFrom/ToCameraToolsBuffer functions
 /// </summary>
 /// <returns>true if the allocation went OK, false otherwise. Returns true as well if this function was already called.</returns>
-static bool connectFromCameraTools()
+bool connectFromCameraTools()
 {
 	if(nullptr != g_dataFromCameraToolsBuffer)
 	{
@@ -84,14 +96,36 @@ static bool connectFromCameraTools()
 }
 
 
-
 /// <summary>
 /// Gets the pointer to the buffer (8KB) for data to this addon from the camera tools.
 /// </summary>
 /// <returns>valid pointer or nullptr if connectFromCameraTools hasn't been called yet</returns>
-static LPBYTE getDataFromCameraToolsBuffer()
+LPBYTE getDataFromCameraToolsBuffer()
 {
 	return g_dataFromCameraToolsBuffer;
+}
+
+
+std::string getCurrentPresetPath(effect_runtime* runtime)
+{
+	char path[1024];
+	size_t length;
+
+	runtime->get_current_preset_path(path, &length);
+	return path;
+}
+
+ReshadeStateSnapshot getCurrentReshadeState(effect_runtime* runtime)
+{
+	if(g_presetFilename.length()<=0)
+	{
+		g_presetFilename = getCurrentPresetPath(runtime);
+	}
+	
+	ReshadeStateSnapshot currentState;
+
+	currentState.obtainReshadeState(runtime);
+	return currentState;
 }
 
 
@@ -247,6 +281,55 @@ static void displaySettings(reshade::api::effect_runtime *runtime)
 			ImGui::InputFloat("Roll (radians)", &cameraData->roll, ImGuiInputTextFlags_ReadOnly);
 		}
 	}
+
+	if(ImGui::Button("Get snapshot 1"))
+	{
+		g_snapshotOne = getCurrentReshadeState(runtime);
+	}
+	ImGui::SameLine();
+	if(ImGui::Button("Set state to snapshot 1"))
+	{
+		g_snapshotOne.applyState(runtime);
+	}
+
+	if(ImGui::Button("Get snapshot 2"))
+	{
+		g_snapshotTwo = getCurrentReshadeState(runtime);
+	}
+	ImGui::SameLine();
+	if(ImGui::Button("Set state to snapshot 2"))
+	{
+		g_snapshotTwo.applyState(runtime);
+	}
+
+	if(ImGui::Button("Get snapshot 3"))
+	{
+		g_snapshotThree = getCurrentReshadeState(runtime);
+	}
+	ImGui::SameLine();
+	if(ImGui::Button("Set state to snapshot 3"))
+	{
+		g_snapshotThree.applyState(runtime);
+	}
+}
+
+
+void onReshadeReloadEffects(effect_runtime* runtime)
+{
+	if(g_presetFilename!=getCurrentPresetPath(runtime))
+	{
+		// different preset, ignore
+		return;
+	}
+
+	ReshadeStateSnapshot currentState;
+
+	currentState.obtainReshadeState(runtime);
+
+	// migrate collected snapshots.
+	g_snapshotOne.migrateState(currentState);
+	g_snapshotTwo.migrateState(currentState);
+	g_snapshotThree.migrateState(currentState);
 }
 
 
@@ -261,6 +344,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID)
 		}
 		reshade::register_event<reshade::addon_event::reshade_present>(onReshadePresent);
 		reshade::register_event<reshade::addon_event::reshade_overlay>(onReshadeOverlay);
+		reshade::register_event<reshade::addon_event::reshade_reloaded_effects>(onReshadeReloadEffects);
 		reshade::register_overlay(nullptr, &displaySettings);
 		break;
 	case DLL_PROCESS_DETACH:
