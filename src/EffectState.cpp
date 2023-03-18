@@ -32,6 +32,7 @@
 /////////////////////////////////////////////////////////////////////////
 
 #include "ReshadeStateSnapshot.h"
+#include "Utils.h"
 
 EffectState::EffectState(std::string name) : _name(name)
 {}
@@ -120,5 +121,26 @@ void EffectState::migrateIds(const EffectState& idSource)
 	for(auto& it : toRemove)
 	{
 		_uniformValuePerName.erase(it);
+	}
+}
+
+
+void EffectState::applyStateFromTo(reshade::api::effect_runtime* runtime, EffectState destinationEffect, float interpolationFactor)
+{
+	auto& destinationValuesPerName = destinationEffect._uniformValuePerName;
+
+	for(auto& nameValuePair : _uniformValuePerName)
+	{
+		if(!destinationValuesPerName.contains(nameValuePair.first))
+		{
+			continue;
+		}
+		const auto& destinationValues = destinationValuesPerName[nameValuePair.first];
+		const auto& id = _uniformVariableIdPerName[nameValuePair.first];
+
+		runtime->set_uniform_value_float(reshade::api::effect_uniform_variable(id), IGCS::Utils::lerp(nameValuePair.second.x, destinationValues.x, interpolationFactor),
+												IGCS::Utils::lerp(nameValuePair.second.y, destinationValues.y, interpolationFactor),
+												IGCS::Utils::lerp(nameValuePair.second.z, destinationValues.z, interpolationFactor),
+												IGCS::Utils::lerp(nameValuePair.second.w, destinationValues.w, interpolationFactor));
 	}
 }

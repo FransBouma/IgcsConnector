@@ -34,6 +34,7 @@
 #include "ReshadeStateSnapshot.h"
 
 #include <unordered_set>
+#include <unordered_map>
 
 #include "EffectState.h"
 
@@ -114,4 +115,19 @@ void ReshadeStateSnapshot::obtainReshadeState(reshade::api::effect_runtime* runt
 		addEffectState(state);
 	}
 
+}
+
+void ReshadeStateSnapshot::applyStateFromTo(reshade::api::effect_runtime* runtime, const ReshadeStateSnapshot& snapShotDestination, float interpolationFactor)
+{
+	// traverse our effects and interpolate their values to the values in snapShotDestination using the interpolation factor
+	std::unordered_map<std::string, EffectState> destinationEffectsPerName = snapShotDestination._effectStatePerEffectName;
+	for(auto& nameEffectPair : _effectStatePerEffectName)
+	{
+		if(!destinationEffectsPerName.contains(nameEffectPair.first))
+		{
+			continue;
+		}
+		const auto& destinationEffect = destinationEffectsPerName[nameEffectPair.first];
+		nameEffectPair.second.applyStateFromTo(runtime, destinationEffect, interpolationFactor);
+	}
 }

@@ -36,4 +36,40 @@ namespace IGCS::Utils
 
 	BYTE CharToByte(char c);
 	bool stringStartsWith(const char *a, const char *b);
+
+
+	/// <summary>
+	/// Special clamp variant, which returns the min value if value is smaller than min value, and max if the value is larger than max. Max is optional, if it's e.g. 0 or equal to Min, only the min
+	///	value is effective. 
+	/// </summary>
+	/// <typeparam name="T"></typeparam>
+	/// <param name="value"></param>
+	/// <param name="min"></param>
+	/// <param name="max"></param>
+	/// <returns></returns>
+	template <typename T>
+	T clampEx(T value, T min, T max)
+	{
+		return
+			(value < min)
+			? min
+			: (value < max)
+			? value
+			: max;
+	}
+
+	/// <summary>
+	/// Implements classic lerp functionality to smoothly transition between two values based on a factor between 0 and 1
+	/// </summary>
+	/// <typeparam name="T"></typeparam>
+	/// <param name="x"></param>
+	/// <param name="y"></param>
+	/// <param name="s"></param>
+	/// <returns></returns>
+	template <typename T>
+	T lerp(T x, T y, T s)
+	{
+		return (x + (s * (y - x)));
+	}
+
 }

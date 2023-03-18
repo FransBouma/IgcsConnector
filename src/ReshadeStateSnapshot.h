@@ -53,6 +53,9 @@ public:
 	/// </summary>
 	void migrateState(const ReshadeStateSnapshot& currentState);
 	void obtainReshadeState(reshade::api::effect_runtime* runtime);
+	void applyStateFromTo(reshade::api::effect_runtime* runtime, const ReshadeStateSnapshot& snapShotDestination, float interpolationFactor);
+
+	bool isEmpty() { return _effectStatePerEffectName.size() <= 0; }
 
 private:
 	void addEffectState(EffectState toAdd);

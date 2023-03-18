@@ -60,6 +60,7 @@ public:
 	/// </summary>
 	/// <param name="idSource"></param>
 	void migrateIds(const EffectState& idSource);
+	void applyStateFromTo(reshade::api::effect_runtime* runtime, EffectState destinationEffect, float interpolationFactor);
 
 	std::string name() { return _name; }
 

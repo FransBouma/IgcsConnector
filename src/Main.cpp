@@ -68,12 +68,12 @@ static LPBYTE g_dataFromCameraToolsBuffer = nullptr;		// 8192 bytes buffer
 static ScreenshotSettings g_screenshotSettings;
 static ScreenshotController g_screenshotController;
 
-
 // testcode
 static ReshadeStateSnapshot g_snapshotOne;
 static ReshadeStateSnapshot g_snapshotTwo;
 static ReshadeStateSnapshot g_snapshotThree;
-static std::string g_presetFilename;
+static float g_interpolationFactor = 0.0f;
+static bool g_interpolate = false;
 
 /// <summary>
 /// Entry point for IGCS camera tools. Call this to initialize the buffers. Obtain the buffers using the getDataFrom/ToCameraToolsBuffer functions
@@ -117,11 +117,6 @@ std::string getCurrentPresetPath(effect_runtime* runtime)
 
 ReshadeStateSnapshot getCurrentReshadeState(effect_runtime* runtime)
 {
-	if(g_presetFilename.length()<=0)
-	{
-		g_presetFilename = getCurrentPresetPath(runtime);
-	}
-	
 	ReshadeStateSnapshot currentState;
 
 	currentState.obtainReshadeState(runtime);
@@ -132,6 +127,11 @@ ReshadeStateSnapshot getCurrentReshadeState(effect_runtime* runtime)
 static void onReshadePresent(effect_runtime* runtime)
 {
 	g_screenshotController.presentCalled();
+	if(g_interpolate)
+	{
+		// interpolate one and two based on the interpolation factor;
+		g_snapshotOne.applyStateFromTo(runtime, g_snapshotTwo, g_interpolationFactor);
+	}
 }
 
 
@@ -282,6 +282,7 @@ static void displaySettings(reshade::api::effect_runtime *runtime)
 		}
 	}
 
+	// test code
 	if(ImGui::Button("Get snapshot 1"))
 	{
 		g_snapshotOne = getCurrentReshadeState(runtime);
@@ -311,16 +312,24 @@ static void displaySettings(reshade::api::effect_runtime *runtime)
 	{
 		g_snapshotThree.applyState(runtime);
 	}
+
+	ImGui::Checkbox("Interpolate", &g_interpolate);
+	ImGui::SliderFloat("Interpolation factor", &g_interpolationFactor, 0.0f, 1.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp);
 }
 
 
 void onReshadeReloadEffects(effect_runtime* runtime)
 {
-	if(g_presetFilename!=getCurrentPresetPath(runtime))
+	static bool firstCall = true;
+
+	// skip the first call as it's the one where all effects have been destroyed
+	// Feels very hacky. 
+	if(firstCall)
 	{
-		// different preset, ignore
+		firstCall = false;
 		return;
 	}
+	firstCall = true;	// 
 
 	ReshadeStateSnapshot currentState;
 
