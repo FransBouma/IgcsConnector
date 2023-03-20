@@ -47,9 +47,16 @@ void ReshadeStateSnapshot::addEffectState(EffectState toAdd)
 
 void ReshadeStateSnapshot::applyState(reshade::api::effect_runtime* runtime)
 {
+	// Apply uniform value state
 	for(auto& it : _effectStatePerEffectName)
 	{
 		it.second.applyState(runtime);
+	}
+
+	// Apply technique state
+	for(auto& nameIdPair : _techniqueIdPerName)
+	{
+		runtime->set_technique_state(reshade::api::effect_technique(nameIdPair.second), _techniqueEnabledPerName[nameIdPair.first]);
 	}
 }
 
@@ -73,37 +80,71 @@ void ReshadeStateSnapshot::migrateState(const ReshadeStateSnapshot& currentState
 		toMigrate.migrateIds(nameEffectPair.second);
 	}
 
-	std::vector<std::string> toRemove;	// old ones now gone
-	for(auto& nameEffectPair : _effectStatePerEffectName)
+	_techniqueIdPerName.clear();
+	// migrate technique ids
+	for(auto& nameIsEnabledPair : currentState._techniqueEnabledPerName)
 	{
-		if(!currentState._effectStatePerEffectName.contains(nameEffectPair.first))
+		// It's a bit nonsense to alter shader files while setting up a path and reloading the preset, but let's cover all the basis... 
+		auto sourceIdsPerName = currentState._techniqueIdPerName;
+		const auto id = sourceIdsPerName[nameIsEnabledPair.first];
+		if(!_techniqueEnabledPerName.contains(nameIsEnabledPair.first))
 		{
-			// no longer there, remove it
-			toRemove.push_back(nameEffectPair.second.name());
+			// add it, it was not yet known
+			_techniqueEnabledPerName[nameIsEnabledPair.first] = nameIsEnabledPair.second;
+		}
+		_techniqueIdPerName[nameIsEnabledPair.first] = id;
+	}
+
+	// it might be the new state has less techniques than we had in the previous state. Check if there are left over techniques.
+	std::vector<std::string> toRemove;
+	for(auto& nameValuePair : _techniqueEnabledPerName)
+	{
+		if(!_techniqueIdPerName.contains(nameValuePair.first))
+		{
+			// no longer there
+			toRemove.push_back(nameValuePair.first);
 		}
 	}
+
 	for(auto& it : toRemove)
 	{
-		_effectStatePerEffectName.erase(it);
+		_techniqueEnabledPerName.erase(it);
 	}
+}
+
+
+void ReshadeStateSnapshot::addTechnique(reshade::api::effect_technique id, std::string name, bool isEnabled)
+{
+	_techniqueEnabledPerName[name] = isEnabled;
+	_techniqueIdPerName.emplace(name, id.handle);
 }
 
 
 void ReshadeStateSnapshot::obtainReshadeState(reshade::api::effect_runtime* runtime)
 {
-	// enumerate techniques. if a technique is enabled, grab the effect name and its uniforms and per uniform its value.
+	// enumerate techniques. if a technique is enabled, grab the effect name and its uniforms and per uniform its value. We don't store uniforms for effects which have no
+	// enabled technique, as we won't lerp to these values anyway. 
 	std::unordered_set<std::string> effectNamesWithEnabledTechniques;
-	runtime->enumerate_techniques(nullptr, [&effectNamesWithEnabledTechniques](reshade::api::effect_runtime* sourceRuntime, reshade::api::effect_technique technique)
+	runtime->enumerate_techniques(nullptr, [this, &effectNamesWithEnabledTechniques](reshade::api::effect_runtime* sourceRuntime, reshade::api::effect_technique technique)
 	{
-		if(sourceRuntime->get_technique_state(technique))
+		const bool isEnabled = sourceRuntime->get_technique_state(technique);
+		char nameBuffer[1024] = { 0 };
+		size_t nameBufferLength = 1024;
+
+		if(isEnabled)
 		{
 			// grab the effect name
-			char nameBuffer[1024];
-			size_t nameBufferLength = 1024;
 			sourceRuntime->get_technique_effect_name(technique, nameBuffer, &nameBufferLength);
 			std::string effectName(nameBuffer);
 			effectNamesWithEnabledTechniques.emplace(effectName);
 		}
+
+		memset(nameBuffer, 0, sizeof(char));
+		nameBufferLength = 1024;
+		sourceRuntime->get_technique_name(technique, nameBuffer, &nameBufferLength);
+		const std::string techniqueName(nameBuffer);
+
+		addTechnique(technique, techniqueName, isEnabled);
 	});
 
 	// per effect name, obtain all uniforms.
@@ -114,8 +155,8 @@ void ReshadeStateSnapshot::obtainReshadeState(reshade::api::effect_runtime* runt
 		state.obtainEffectState(runtime);
 		addEffectState(state);
 	}
-
 }
+
 
 void ReshadeStateSnapshot::applyStateFromTo(reshade::api::effect_runtime* runtime, const ReshadeStateSnapshot& snapShotDestination, float interpolationFactor)
 {
@@ -129,5 +170,21 @@ void ReshadeStateSnapshot::applyStateFromTo(reshade::api::effect_runtime* runtim
 		}
 		const auto& destinationEffect = destinationEffectsPerName[nameEffectPair.first];
 		nameEffectPair.second.applyStateFromTo(runtime, destinationEffect, interpolationFactor);
+	}
+
+	// if techniques are enabled in both this snapshot and the destination snapshot, we're going to enable the technique. Otherwise the technique is disabled.
+	std::unordered_map<std::string, bool> destinationTechniqueEnabledPerName = snapShotDestination._techniqueEnabledPerName;
+	for(auto& nameIsEnabledPair : _techniqueEnabledPerName)
+	{
+		bool newTechniqueState = false;
+
+		if(destinationTechniqueEnabledPerName.contains(nameIsEnabledPair.first))
+		{
+			const auto& destinationIsEnabled = destinationTechniqueEnabledPerName[nameIsEnabledPair.first];
+			newTechniqueState = nameIsEnabledPair.second && destinationIsEnabled;
+		}
+
+		const auto id = _techniqueIdPerName[nameIsEnabledPair.first];
+		runtime->set_technique_state(reshade::api::effect_technique(id), newTechniqueState);
 	}
 }

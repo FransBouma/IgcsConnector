@@ -65,12 +65,12 @@ public:
 	std::string name() { return _name; }
 
 private:
-	void addUniform(std::string name, reshade::api::effect_uniform_variable id, float* values);
+	void addUniform(reshade::api::effect_uniform_variable id, std::string name, float* values);
 
 	std::string _name;
 	// Names are usable across reloads of a preset. It might still be names aren't present after a reload (e.g. a shader changed). But for our use case this isn't important. 
 	std::unordered_map<std::string, uint64_t> _uniformVariableIdPerName;
-	std::unordered_map<std::string, DirectX::XMFLOAT4> _uniformValuePerName;		// stored with their uniform name for this effect. We store floats as float4. 
+	std::unordered_map<std::string, DirectX::XMFLOAT4> _uniformValuePerName;		// stored with their uniform name for this effect. We store floats as float4.
 };
 
 

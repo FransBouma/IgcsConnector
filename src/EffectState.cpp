@@ -37,7 +37,7 @@
 EffectState::EffectState(std::string name) : _name(name)
 {}
 
-void EffectState::addUniform(std::string name, reshade::api::effect_uniform_variable id, float* values)
+void EffectState::addUniform(reshade::api::effect_uniform_variable id, std::string name, float* values)
 {
 	_uniformValuePerName.emplace(name, DirectX::XMFLOAT4(values));
 	_uniformVariableIdPerName.emplace(name, id.handle);
@@ -81,10 +81,9 @@ void EffectState::obtainEffectState(reshade::api::effect_runtime* runtime)
 			// get value
 			float values[4] = {};
 			sourceRuntime->get_uniform_value_float(variable, values, 4);
-			addUniform(uniformName, variable, values);
+			addUniform(variable, uniformName, values);
 		}
 	});
-
 }
 
 
@@ -96,16 +95,12 @@ void EffectState::migrateIds(const EffectState& idSource)
 	{
 		auto sourceIdsPerName = idSource._uniformVariableIdPerName;
 		const auto id = sourceIdsPerName[nameValuePair.first];
-		if(_uniformValuePerName.contains(nameValuePair.first))
-		{
-			_uniformVariableIdPerName[nameValuePair.first] = id;
-		}
-		else
+		if(!_uniformValuePerName.contains(nameValuePair.first))
 		{
 			// add it, it was not yet known
 			_uniformValuePerName[nameValuePair.first] = nameValuePair.second;
-			_uniformVariableIdPerName[nameValuePair.first] = id;
 		}
+		_uniformVariableIdPerName[nameValuePair.first] = id;
 	}
 	// it might be the new state has less variables than we had in the previous state. Check if there are left over variables.
 	std::vector<std::string> toRemove;
@@ -138,9 +133,10 @@ void EffectState::applyStateFromTo(reshade::api::effect_runtime* runtime, Effect
 		const auto& destinationValues = destinationValuesPerName[nameValuePair.first];
 		const auto& id = _uniformVariableIdPerName[nameValuePair.first];
 
-		runtime->set_uniform_value_float(reshade::api::effect_uniform_variable(id), IGCS::Utils::lerp(nameValuePair.second.x, destinationValues.x, interpolationFactor),
-												IGCS::Utils::lerp(nameValuePair.second.y, destinationValues.y, interpolationFactor),
-												IGCS::Utils::lerp(nameValuePair.second.z, destinationValues.z, interpolationFactor),
-												IGCS::Utils::lerp(nameValuePair.second.w, destinationValues.w, interpolationFactor));
+		const float x = IGCS::Utils::lerp(nameValuePair.second.x, destinationValues.x, interpolationFactor);
+		const float y = IGCS::Utils::lerp(nameValuePair.second.y, destinationValues.y, interpolationFactor);
+		const float z = IGCS::Utils::lerp(nameValuePair.second.z, destinationValues.z, interpolationFactor);
+		const float w = IGCS::Utils::lerp(nameValuePair.second.w, destinationValues.w, interpolationFactor);
+		runtime->set_uniform_value_float(reshade::api::effect_uniform_variable(id), x, y, z, w);
 	}
 }

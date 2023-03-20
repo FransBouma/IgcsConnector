@@ -56,10 +56,15 @@ public:
 	void applyStateFromTo(reshade::api::effect_runtime* runtime, const ReshadeStateSnapshot& snapShotDestination, float interpolationFactor);
 
 	bool isEmpty() { return _effectStatePerEffectName.size() <= 0; }
+	int numberOfContainedEffects() { return _effectStatePerEffectName.size(); }
 
 private:
 	void addEffectState(EffectState toAdd);
+	void addTechnique(reshade::api::effect_technique id, std::string name, bool isEnabled);
 
 	std::unordered_map<std::string, EffectState> _effectStatePerEffectName;
+
+	std::unordered_map<std::string, uint64_t> _techniqueIdPerName;
+	std::unordered_map<std::string, bool> _techniqueEnabledPerName;
 };
 

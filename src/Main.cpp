@@ -42,12 +42,9 @@
 #include <Psapi.h>
 #include <sstream>
 #include <string>
-#include <unordered_set>
-#include <unordered_map>
-#include <vector>
+#include "Utils.h"
 
 #include "CameraToolsData.h"
-#include "CDataFile.h"
 #include "ScreenshotController.h"
 #include "ScreenshotSettings.h"
 #include "OverlayControl.h"
@@ -106,20 +103,26 @@ LPBYTE getDataFromCameraToolsBuffer()
 }
 
 
-std::string getCurrentPresetPath(effect_runtime* runtime)
+void logLineToReshade(const reshade::log_level logLevel,  const char* fmt, ...)
 {
-	char path[1024];
-	size_t length;
+	va_list args;
+	va_start(args, fmt);
+	const std::string formattedString = IGCS::Utils::formatStringVa(fmt, args);
+	va_end(args);
 
-	runtime->get_current_preset_path(path, &length);
-	return path;
+	reshade::log_message(logLevel, formattedString.c_str());
 }
+
 
 ReshadeStateSnapshot getCurrentReshadeState(effect_runtime* runtime)
 {
 	ReshadeStateSnapshot currentState;
 
 	currentState.obtainReshadeState(runtime);
+
+#ifdef _DEBUG
+	logLineToReshade(reshade::log_level::debug, "Obtained reshade state with %d enabled effects", currentState.numberOfContainedEffects());
+#endif
 	return currentState;
 }
 
@@ -129,8 +132,11 @@ static void onReshadePresent(effect_runtime* runtime)
 	g_screenshotController.presentCalled();
 	if(g_interpolate)
 	{
+		runtime->set_save_preset_on_api_uniform_change_state(false);
 		// interpolate one and two based on the interpolation factor;
 		g_snapshotOne.applyStateFromTo(runtime, g_snapshotTwo, g_interpolationFactor);
+
+		runtime->set_save_preset_on_api_uniform_change_state(true);
 	}
 }
 
