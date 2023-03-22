@@ -164,7 +164,6 @@
   <ItemGroup>
     <ClInclude Include="CameraPathData.h" />
     <ClInclude Include="CameraToolsData.h" />
-    <ClInclude Include="CDataFile.h" />
     <ClInclude Include="ConstantsEnums.h" />
     <ClInclude Include="EffectState.h" />
     <ClInclude Include="fpng.h" />
@@ -182,7 +181,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="CameraPathData.cpp" />
-    <ClCompile Include="CDataFile.cpp" />
     <ClCompile Include="EffectState.cpp" />
     <ClCompile Include="fpng.cpp" />
     <ClCompile Include="Main.cpp" />
