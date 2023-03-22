@@ -42,7 +42,6 @@
 #include <Psapi.h>
 #include <sstream>
 #include <string>
-#include "Utils.h"
 
 #include "CameraToolsData.h"
 #include "ScreenshotController.h"
@@ -61,6 +60,13 @@ extern "C" __declspec(dllexport) const char *DESCRIPTION = "Add-on which allows 
 // externs for IGCS
 extern "C" __declspec(dllexport) bool connectFromCameraTools();
 extern "C" __declspec(dllexport) LPBYTE getDataFromCameraToolsBuffer();
+extern "C" __declspec(dllexport) void addCameraPath();
+extern "C" __declspec(dllexport) void removeCameraPath(int pathIndex);
+extern "C" __declspec(dllexport) void appendStateToPath(int pathIndex);
+extern "C" __declspec(dllexport) void removeStateFromPath(int pathIndex, int stateIndex);
+extern "C" __declspec(dllexport) void updateStateOnPath(int pathIndex, int stateIndex);
+extern "C" __declspec(dllexport) void setReshadeStateInterpolated(int pathIndex, int fromStateIndex, int toStateIndex, float interpolationFactor);
+extern "C" __declspec(dllexport) void setReshadeState(int pathIndex, int stateIndex);
 
 static LPBYTE g_dataFromCameraToolsBuffer = nullptr;		// 8192 bytes buffer
 static ScreenshotSettings g_screenshotSettings;
@@ -68,10 +74,6 @@ static ScreenshotController g_screenshotController;
 static ReshadeStateController g_reshadeStateController;
 static IGCS::ThreadSafeQueue<WorkItem> g_presentWorkQueue;
 
-// testcode
-static float g_interpolationFactor = 0.0f;
-static bool g_interpolate = false;
-static bool g_nodesCreated = false;
 
 /// <summary>
 /// Entry point for IGCS camera tools. Call this to initialize the buffers. Obtain the buffers using the getDataFrom/ToCameraToolsBuffer functions
@@ -104,13 +106,87 @@ LPBYTE getDataFromCameraToolsBuffer()
 }
 
 
-ReshadeStateSnapshot getCurrentReshadeState(reshade::api::effect_runtime* runtime)
+/// <summary>
+/// Adds a camera path to the reshade state controller
+/// </summary>
+void addCameraPath()
 {
-	ReshadeStateSnapshot currentState;
-
-	currentState.obtainReshadeState(runtime);
-	return currentState;
+	g_reshadeStateController.addCameraPath();
 }
+
+
+/// <summary>
+/// Removes the path with the index specified
+/// </summary>
+/// <param name="pathIndex"></param>
+void removeCameraPath(int pathIndex)
+{
+	g_reshadeStateController.removeCameraPath(pathIndex);
+}
+
+
+/// <summary>
+/// Appends the current state to the path with the index specified
+/// </summary>
+/// <param name="pathIndex"></param>
+void appendStateToPath(int pathIndex)
+{
+	// done deferred.
+	g_presentWorkQueue.push({ [pathIndex](effect_runtime* lambdaRuntime) {g_reshadeStateController.appendStateToPath(pathIndex, lambdaRuntime); } });
+}
+
+
+/// <summary>
+/// Update the state at offset stateIndex on path with index pathIndex to the current state
+/// </summary>
+/// <param name="pathIndex"></param>
+/// <param name="stateIndex"></param>
+void updateStateOnPath(int pathIndex, int stateIndex)
+{
+	// done deferred.
+	g_presentWorkQueue.push({ [pathIndex, stateIndex](effect_runtime* lambdaRuntime) {g_reshadeStateController.updateStateOnPath(pathIndex, stateIndex, lambdaRuntime); } });
+}
+
+
+/// <summary>
+/// Removes the state at index stateIndex from the path at index pathIndex
+/// </summary>
+/// <param name="pathIndex"></param>
+/// <param name="stateIndex"></param>
+void removeStateFromPath(int pathIndex, int stateIndex)
+{
+	g_reshadeStateController.removeStateFromPath(pathIndex, stateIndex);
+}
+
+
+/// <summary>
+/// Sets reshade's effect state to the interpolation of the two states at offset fromStateIndex and toStateIndex on path with index pathIndex, using the interpolation factor specified. 
+/// </summary>
+/// <param name="pathIndex"></param>
+/// <param name="fromStateIndex"></param>
+/// <param name="toStateIndex"></param>
+/// <param name="interpolationFactor">if 0.0 the state will be fromState, if 1.0 the state will be toState, any value between 0 and 1 will be an interpolation using lerp of fromState and toState</param>
+void setReshadeStateInterpolated(int pathIndex, int fromStateIndex, int toStateIndex, float interpolationFactor)
+{
+	// done deferred
+	g_presentWorkQueue.push({ [pathIndex, fromStateIndex, toStateIndex, interpolationFactor](effect_runtime* lambdaRuntime)
+	{
+		g_reshadeStateController.setReshadeState(pathIndex, fromStateIndex, toStateIndex, interpolationFactor, lambdaRuntime);
+	} });
+}
+
+
+/// <summary>
+/// Sets reshade's effect state to the state on index stateIndex on path with index pathIndex
+/// </summary>
+/// <param name="pathIndex"></param>
+/// <param name="stateIndex"></param>
+void setReshadeState(int pathIndex, int stateIndex)
+{
+	// done deferred
+	g_presentWorkQueue.push({ [pathIndex, stateIndex](effect_runtime* lambdaRuntime) {g_reshadeStateController.setReshadeState(pathIndex, stateIndex, lambdaRuntime); } });
+}
+
 
 
 void handleWorkQueue(effect_runtime* runtime)
@@ -131,21 +207,6 @@ void handleWorkQueue(effect_runtime* runtime)
 static void onReshadePresent(effect_runtime* runtime)
 {
 	g_screenshotController.presentCalled();
-
-	// test code create 3 nodes.
-	if(!g_nodesCreated)
-	{
-		g_reshadeStateController.appendStateToPath(0, runtime);
-		g_reshadeStateController.appendStateToPath(0, runtime);
-		g_reshadeStateController.appendStateToPath(0, runtime);
-		g_nodesCreated = true;
-	}
-
-	if(g_interpolate)
-	{
-		// fake work but to test only.
-		g_presentWorkQueue.push({ [](effect_runtime* lambdaRuntime) {g_reshadeStateController.setReshadeState(0, 0, 1, g_interpolationFactor, lambdaRuntime); } });
-	}
 
 	// handle our work.
 	handleWorkQueue(runtime);
@@ -194,18 +255,6 @@ static void startScreenshotSession(bool isTestRun)
 		break;
 #endif
 	}
-}
-
-
-void getSnapshot(int snapshotIndex, effect_runtime* runtime)
-{
-	g_presentWorkQueue.push({ [snapshotIndex](effect_runtime* lambdaRuntime) {g_reshadeStateController.updateStateOnPath(0, snapshotIndex, lambdaRuntime); } });
-}
-
-
-void setReshadeState(int snapshotIndex, effect_runtime* runtime)
-{
-	g_presentWorkQueue.push({ [snapshotIndex](effect_runtime* lambdaRuntime) {g_reshadeStateController.setReshadeState(0, snapshotIndex, lambdaRuntime); } });
 }
 
 
@@ -310,40 +359,6 @@ static void displaySettings(reshade::api::effect_runtime *runtime)
 			ImGui::InputFloat("Roll (radians)", &cameraData->roll, ImGuiInputTextFlags_ReadOnly);
 		}
 	}
-
-	// test code
-	if(ImGui::Button("Get snapshot 1"))
-	{
-		getSnapshot(0, runtime);
-	}
-	ImGui::SameLine();
-	if(ImGui::Button("Set state to snapshot 1"))
-	{
-		setReshadeState(0, runtime);
-	}
-
-	if(ImGui::Button("Get snapshot 2"))
-	{
-		getSnapshot(1, runtime);
-	}
-	ImGui::SameLine();
-	if(ImGui::Button("Set state to snapshot 2"))
-	{
-		setReshadeState(1, runtime);
-	}
-
-	if(ImGui::Button("Get snapshot 3"))
-	{
-		getSnapshot(2, runtime);
-	}
-	ImGui::SameLine();
-	if(ImGui::Button("Set state to snapshot 3"))
-	{
-		setReshadeState(2, runtime);
-	}
-
-	ImGui::Checkbox("Interpolate", &g_interpolate);
-	ImGui::SliderFloat("Interpolation factor", &g_interpolationFactor, 0.0f, 1.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp);
 }
 
 
@@ -370,10 +385,6 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID)
 		reshade::register_event<reshade::addon_event::reshade_overlay>(onReshadeOverlay);
 		reshade::register_event<reshade::addon_event::reshade_reloaded_effects>(onReshadeReloadEffects);
 		reshade::register_overlay(nullptr, &displaySettings);
-
-		// test code
-		g_reshadeStateController.addCameraPath();
-
 		break;
 	case DLL_PROCESS_DETACH:
 		reshade::unregister_event<reshade::addon_event::reshade_present>(onReshadePresent);
