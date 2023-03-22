@@ -1,4 +1,4 @@
-///////////////////////////////////////////////////////////////////////
+﻿///////////////////////////////////////////////////////////////////////
 //
 // Part of IGCS Connector, an add on for Reshade 5+ which allows you
 // to connect IGCS built camera tools with reshade to exchange data and control
@@ -33,38 +33,22 @@
 
 #pragma once
 
+#include <functional>
 #include <reshade.hpp>
-#include <string>
-#include <unordered_map>
 
-#include "EffectState.h"
-
-/// <summary>
-/// Defines a reshade state snapshot, which contains all enabled techniques and all uniform variables and their values. 
-/// </summary>
-class ReshadeStateSnapshot
+struct WorkItem
 {
 public:
-	void applyState(reshade::api::effect_runtime* runtime);
+	WorkItem(std::function<void(reshade::api::effect_runtime* runtime)> workPerformer)
+	{
+		_workPerformer = workPerformer;
+	}
 
-	/// <summary>
-	/// Will migrate the state contained in this snapshot to the new id's used for variables. Doesn't mgirate variables to new values, only
-	///	id's so we can set the state again using the current id's. Will also remove effects that are no longer enabled, and add new ones that are now enabled. 
-	/// </summary>
-	void migrateState(const ReshadeStateSnapshot& currentState);
-	void obtainReshadeState(reshade::api::effect_runtime* runtime);
-	void applyStateFromTo(const ReshadeStateSnapshot& snapShotDestination, float interpolationFactor, reshade::api::effect_runtime* runtime);
-
-	bool isEmpty() const { return _effectStatePerEffectName.size() <= 0; }
-	int numberOfContainedEffects() { return _effectStatePerEffectName.size(); }
+	void perform(reshade::api::effect_runtime* runtime)
+	{
+		_workPerformer(runtime);
+	}
 
 private:
-	void addEffectState(EffectState toAdd);
-	void addTechnique(reshade::api::effect_technique id, std::string name, bool isEnabled);
-
-	std::unordered_map<std::string, EffectState> _effectStatePerEffectName;
-
-	std::unordered_map<std::string, uint64_t> _techniqueIdPerName;
-	std::unordered_map<std::string, bool> _techniqueEnabledPerName;
+	std::function<void(reshade::api::effect_runtime* runtime)> _workPerformer;
 };
-

@@ -78,13 +78,13 @@ BEGIN
         BLOCK "040004b0"
         BEGIN
             VALUE "CompanyName", "Frans 'Otis_Inf' Bouma"
-            VALUE "FileDescription", "IGCS Connection Addon for ReShade 5+"
-            VALUE "FileVersion", "1.0.0"
+            VALUE "FileDescription", "IGCS Connection Addon for ReShade 5.8+"
+            VALUE "FileVersion", "2.0.0"
             VALUE "InternalName", "IgcsConnector.dll"
-            VALUE "LegalCopyright", "Copyright (C) 2022 Frans Bouma"
+            VALUE "LegalCopyright", "Copyright (C) 2023 Frans Bouma"
             VALUE "OriginalFilename", "IgcsConnector.dll"
-            VALUE "ProductName", "IGCS Connection addon for ReShade 5+"
-            VALUE "ProductVersion", "1.0.0"
+            VALUE "ProductName", "IGCS Connection addon for ReShade 5.8+"
+            VALUE "ProductVersion", "2.0.0"
         END
     END
     BLOCK "VarFileInfo"

@@ -32,39 +32,32 @@
 /////////////////////////////////////////////////////////////////////////
 
 #pragma once
-
+#include <mutex>
 #include <reshade.hpp>
-#include <string>
-#include <unordered_map>
+#include "CameraPathData.h"
+#include "ReshadeStateSnapshot.h"
 
-#include "EffectState.h"
 
 /// <summary>
-/// Defines a reshade state snapshot, which contains all enabled techniques and all uniform variables and their values. 
+/// Class which maintains reshade state snapshots for various paths.
 /// </summary>
-class ReshadeStateSnapshot
+class ReshadeStateController
 {
 public:
-	void applyState(reshade::api::effect_runtime* runtime);
-
-	/// <summary>
-	/// Will migrate the state contained in this snapshot to the new id's used for variables. Doesn't mgirate variables to new values, only
-	///	id's so we can set the state again using the current id's. Will also remove effects that are no longer enabled, and add new ones that are now enabled. 
-	/// </summary>
-	void migrateState(const ReshadeStateSnapshot& currentState);
-	void obtainReshadeState(reshade::api::effect_runtime* runtime);
-	void applyStateFromTo(const ReshadeStateSnapshot& snapShotDestination, float interpolationFactor, reshade::api::effect_runtime* runtime);
-
-	bool isEmpty() const { return _effectStatePerEffectName.size() <= 0; }
-	int numberOfContainedEffects() { return _effectStatePerEffectName.size(); }
+	void removeCameraPath(int pathIndex);
+	void addCameraPath();
+	void appendStateToPath(int pathIndex, reshade::api::effect_runtime* runtime);
+	void removeStateFromPath(int pathIndex, int stateIndex);
+	void updateStateOnPath(int pathIndex, int stateIndex, reshade::api::effect_runtime* runtime);
+	void migrateContainedHandles(reshade::api::effect_runtime* runtime);
+	void setReshadeState(int pathIndex, int fromStateIndex, int toStateIndex, float interpolationFactor, reshade::api::effect_runtime* runtime);
+	void setReshadeState(int pathIndex, int stateIndex, reshade::api::effect_runtime* runtime);
 
 private:
-	void addEffectState(EffectState toAdd);
-	void addTechnique(reshade::api::effect_technique id, std::string name, bool isEnabled);
+	std::vector<CameraPathData> _cameraPathsData;
+	mutable std::mutex mutex_;
 
-	std::unordered_map<std::string, EffectState> _effectStatePerEffectName;
-
-	std::unordered_map<std::string, uint64_t> _techniqueIdPerName;
-	std::unordered_map<std::string, bool> _techniqueEnabledPerName;
+	CameraPathData& getCameraPath(int pathIndex);
+	ReshadeStateSnapshot getCurrentReshadeState(reshade::api::effect_runtime* runtime);
 };
 

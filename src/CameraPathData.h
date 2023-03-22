@@ -32,39 +32,32 @@
 /////////////////////////////////////////////////////////////////////////
 
 #pragma once
-
-#include <reshade.hpp>
-#include <string>
-#include <unordered_map>
-
-#include "EffectState.h"
+#include "ReshadeStateSnapshot.h"
 
 /// <summary>
-/// Defines a reshade state snapshot, which contains all enabled techniques and all uniform variables and their values. 
+/// Class which contains the reshade states for a path.
 /// </summary>
-class ReshadeStateSnapshot
+class CameraPathData
 {
 public:
-	void applyState(reshade::api::effect_runtime* runtime);
+	CameraPathData();
 
-	/// <summary>
-	/// Will migrate the state contained in this snapshot to the new id's used for variables. Doesn't mgirate variables to new values, only
-	///	id's so we can set the state again using the current id's. Will also remove effects that are no longer enabled, and add new ones that are now enabled. 
-	/// </summary>
-	void migrateState(const ReshadeStateSnapshot& currentState);
-	void obtainReshadeState(reshade::api::effect_runtime* runtime);
-	void applyStateFromTo(const ReshadeStateSnapshot& snapShotDestination, float interpolationFactor, reshade::api::effect_runtime* runtime);
+	static CameraPathData& getNonExisting();
 
-	bool isEmpty() const { return _effectStatePerEffectName.size() <= 0; }
-	int numberOfContainedEffects() { return _effectStatePerEffectName.size(); }
+	void appendState(const ReshadeStateSnapshot& toAppend);
+	void removeState(int stateIndex);
+	void updateState(const ReshadeStateSnapshot& snapshot, int stateIndex);
+	void migratedContainedHandles(const ReshadeStateSnapshot& currentState);
+	void setReshadeState(int fromStateIndex, int toStateIndex, float interpolationFactor, reshade::api::effect_runtime* runtime);
+	void setReshadeState(int stateIndex, reshade::api::effect_runtime* runtime);
+
+	bool isNonExisting() { return _isNonExisting; }
 
 private:
-	void addEffectState(EffectState toAdd);
-	void addTechnique(reshade::api::effect_technique id, std::string name, bool isEnabled);
+	CameraPathData(bool isNonExisting);
 
-	std::unordered_map<std::string, EffectState> _effectStatePerEffectName;
+	bool _isNonExisting = false;
 
-	std::unordered_map<std::string, uint64_t> _techniqueIdPerName;
-	std::unordered_map<std::string, bool> _techniqueEnabledPerName;
+	std::vector<ReshadeStateSnapshot> _snapshots;
 };
 

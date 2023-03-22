@@ -29,6 +29,7 @@
 #include "Utils.h"
 #include <comdef.h>
 #include <codecvt>
+#include <reshade.hpp>
 
 #pragma warning(disable : 4996)
 
@@ -76,5 +77,16 @@ namespace IGCS::Utils
 	bool stringStartsWith(const char *a, const char *b)
 	{
 		return strncmp(a, b, strlen(b)) == 0 ? 1 : 0;
+	}
+
+
+	void logLineToReshade(const reshade::log_level logLevel, const char* fmt, ...)
+	{
+		va_list args;
+		va_start(args, fmt);
+		const std::string formattedString = IGCS::Utils::formatStringVa(fmt, args);
+		va_end(args);
+
+		reshade::log_message(logLevel, formattedString.c_str());
 	}
 }

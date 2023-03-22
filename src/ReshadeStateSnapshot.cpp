@@ -65,13 +65,22 @@ void ReshadeStateSnapshot::migrateState(const ReshadeStateSnapshot& currentState
 {
 	// we have to collect new id's for our collected variables. Do this by using the name and check if they're still there. If so, migrate
 	// the id they had to their new id.
+	// This call can be made in various scenarios, but they have either one of 2 characteristics: 1) there are 0 effects or 2) there are effects but they're changing.
+	// We can safely ignore the first one, as that's the one originating from the call to destroy_effects. All the other scenarios are from update_effects which is
+	// called in on_present and will end up raising the event in multiple scenarios.
 
-	// now migrate to this new state
+	if(currentState.isEmpty())
+	{
+		// safely ignore this.
+		return;
+	}
+
+	// now migrate to this new state. 
 	for(auto& nameEffectPair : currentState._effectStatePerEffectName)
 	{
 		if(!_effectStatePerEffectName.contains(nameEffectPair.first))
 		{
-			// not yet known, add it
+			// not known yet, add it
 			addEffectState(nameEffectPair.second);
 			continue;
 		}
@@ -158,7 +167,7 @@ void ReshadeStateSnapshot::obtainReshadeState(reshade::api::effect_runtime* runt
 }
 
 
-void ReshadeStateSnapshot::applyStateFromTo(reshade::api::effect_runtime* runtime, const ReshadeStateSnapshot& snapShotDestination, float interpolationFactor)
+void ReshadeStateSnapshot::applyStateFromTo(const ReshadeStateSnapshot& snapShotDestination, float interpolationFactor, reshade::api::effect_runtime* runtime)
 {
 	// traverse our effects and interpolate their values to the values in snapShotDestination using the interpolation factor
 	std::unordered_map<std::string, EffectState> destinationEffectsPerName = snapShotDestination._effectStatePerEffectName;

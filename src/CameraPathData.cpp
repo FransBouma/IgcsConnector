@@ -31,40 +31,79 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /////////////////////////////////////////////////////////////////////////
 
-#pragma once
+#include "CameraPathData.h"
 
-#include <reshade.hpp>
-#include <string>
-#include <unordered_map>
-
-#include "EffectState.h"
-
-/// <summary>
-/// Defines a reshade state snapshot, which contains all enabled techniques and all uniform variables and their values. 
-/// </summary>
-class ReshadeStateSnapshot
+CameraPathData::CameraPathData() : CameraPathData(false)
 {
-public:
-	void applyState(reshade::api::effect_runtime* runtime);
+}
 
-	/// <summary>
-	/// Will migrate the state contained in this snapshot to the new id's used for variables. Doesn't mgirate variables to new values, only
-	///	id's so we can set the state again using the current id's. Will also remove effects that are no longer enabled, and add new ones that are now enabled. 
-	/// </summary>
-	void migrateState(const ReshadeStateSnapshot& currentState);
-	void obtainReshadeState(reshade::api::effect_runtime* runtime);
-	void applyStateFromTo(const ReshadeStateSnapshot& snapShotDestination, float interpolationFactor, reshade::api::effect_runtime* runtime);
+CameraPathData::CameraPathData(bool isNonExisting) : _isNonExisting(isNonExisting)
+{
+}
 
-	bool isEmpty() const { return _effectStatePerEffectName.size() <= 0; }
-	int numberOfContainedEffects() { return _effectStatePerEffectName.size(); }
 
-private:
-	void addEffectState(EffectState toAdd);
-	void addTechnique(reshade::api::effect_technique id, std::string name, bool isEnabled);
+CameraPathData& CameraPathData::getNonExisting()
+{
+	static CameraPathData nonExistingInstance(true);
 
-	std::unordered_map<std::string, EffectState> _effectStatePerEffectName;
+	return nonExistingInstance;
+}
 
-	std::unordered_map<std::string, uint64_t> _techniqueIdPerName;
-	std::unordered_map<std::string, bool> _techniqueEnabledPerName;
-};
+
+void CameraPathData::appendState(const ReshadeStateSnapshot& toAppend)
+{
+	_snapshots.push_back(toAppend);
+}
+
+
+void CameraPathData::removeState(int stateIndex)
+{
+	if(stateIndex<0 || stateIndex>=_snapshots.size())
+	{
+		return;
+	}
+	_snapshots.erase(_snapshots.begin() + stateIndex);
+}
+
+
+void CameraPathData::updateState(const ReshadeStateSnapshot& snapshot, int stateIndex)
+{
+	if(stateIndex<0 || stateIndex>=_snapshots.size())
+	{
+		return;
+	}
+	_snapshots[stateIndex] = snapshot;
+}
+
+
+void CameraPathData::migratedContainedHandles(const ReshadeStateSnapshot& currentState)
+{
+	for(auto& snapshot : _snapshots)
+	{
+		snapshot.migrateState(currentState);
+	}
+}
+
+
+void CameraPathData::setReshadeState(int fromStateIndex, int toStateIndex, float interpolationFactor, reshade::api::effect_runtime* runtime)
+{
+	if(fromStateIndex<0 || toStateIndex < 0 || fromStateIndex>=_snapshots.size() || toStateIndex >= _snapshots.size())
+	{
+		return;
+	}
+	ReshadeStateSnapshot& fromState = _snapshots[fromStateIndex];
+	const ReshadeStateSnapshot& toState = _snapshots[toStateIndex];
+	fromState.applyStateFromTo(toState, interpolationFactor, runtime);
+}
+
+
+void CameraPathData::setReshadeState(int stateIndex, reshade::api::effect_runtime* runtime)
+{
+	if(stateIndex < 0 || stateIndex >= _snapshots.size())
+	{
+		return;
+	}
+	ReshadeStateSnapshot& state = _snapshots[stateIndex];
+	state.applyState(runtime);
+}
 

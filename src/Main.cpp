@@ -48,7 +48,9 @@
 #include "ScreenshotController.h"
 #include "ScreenshotSettings.h"
 #include "OverlayControl.h"
-#include "ReshadeStateSnapshot.h"
+#include "ReshadeStateController.h"
+#include "ThreadSafeQueue.h"
+#include "WorkItem.h"
 
 using namespace reshade::api;
 
@@ -60,17 +62,16 @@ extern "C" __declspec(dllexport) const char *DESCRIPTION = "Add-on which allows 
 extern "C" __declspec(dllexport) bool connectFromCameraTools();
 extern "C" __declspec(dllexport) LPBYTE getDataFromCameraToolsBuffer();
 
-
 static LPBYTE g_dataFromCameraToolsBuffer = nullptr;		// 8192 bytes buffer
 static ScreenshotSettings g_screenshotSettings;
 static ScreenshotController g_screenshotController;
+static ReshadeStateController g_reshadeStateController;
+static IGCS::ThreadSafeQueue<WorkItem> g_presentWorkQueue;
 
 // testcode
-static ReshadeStateSnapshot g_snapshotOne;
-static ReshadeStateSnapshot g_snapshotTwo;
-static ReshadeStateSnapshot g_snapshotThree;
 static float g_interpolationFactor = 0.0f;
 static bool g_interpolate = false;
+static bool g_nodesCreated = false;
 
 /// <summary>
 /// Entry point for IGCS camera tools. Call this to initialize the buffers. Obtain the buffers using the getDataFrom/ToCameraToolsBuffer functions
@@ -103,41 +104,51 @@ LPBYTE getDataFromCameraToolsBuffer()
 }
 
 
-void logLineToReshade(const reshade::log_level logLevel,  const char* fmt, ...)
-{
-	va_list args;
-	va_start(args, fmt);
-	const std::string formattedString = IGCS::Utils::formatStringVa(fmt, args);
-	va_end(args);
-
-	reshade::log_message(logLevel, formattedString.c_str());
-}
-
-
-ReshadeStateSnapshot getCurrentReshadeState(effect_runtime* runtime)
+ReshadeStateSnapshot getCurrentReshadeState(reshade::api::effect_runtime* runtime)
 {
 	ReshadeStateSnapshot currentState;
 
 	currentState.obtainReshadeState(runtime);
-
-#ifdef _DEBUG
-	logLineToReshade(reshade::log_level::debug, "Obtained reshade state with %d enabled effects", currentState.numberOfContainedEffects());
-#endif
 	return currentState;
+}
+
+
+void handleWorkQueue(effect_runtime* runtime)
+{
+	for(;;)
+	{
+		auto topElement = g_presentWorkQueue.pop();
+		if(!topElement.has_value())
+		{
+			break;
+		}
+		auto workItem = topElement.value();
+		workItem.perform(runtime);
+	}
 }
 
 
 static void onReshadePresent(effect_runtime* runtime)
 {
 	g_screenshotController.presentCalled();
+
+	// test code create 3 nodes.
+	if(!g_nodesCreated)
+	{
+		g_reshadeStateController.appendStateToPath(0, runtime);
+		g_reshadeStateController.appendStateToPath(0, runtime);
+		g_reshadeStateController.appendStateToPath(0, runtime);
+		g_nodesCreated = true;
+	}
+
 	if(g_interpolate)
 	{
-		runtime->set_save_preset_on_api_uniform_change_state(false);
-		// interpolate one and two based on the interpolation factor;
-		g_snapshotOne.applyStateFromTo(runtime, g_snapshotTwo, g_interpolationFactor);
-
-		runtime->set_save_preset_on_api_uniform_change_state(true);
+		// fake work but to test only.
+		g_presentWorkQueue.push({ [](effect_runtime* lambdaRuntime) {g_reshadeStateController.setReshadeState(0, 0, 1, g_interpolationFactor, lambdaRuntime); } });
 	}
+
+	// handle our work.
+	handleWorkQueue(runtime);
 }
 
 
@@ -183,6 +194,18 @@ static void startScreenshotSession(bool isTestRun)
 		break;
 #endif
 	}
+}
+
+
+void getSnapshot(int snapshotIndex, effect_runtime* runtime)
+{
+	g_presentWorkQueue.push({ [snapshotIndex](effect_runtime* lambdaRuntime) {g_reshadeStateController.updateStateOnPath(0, snapshotIndex, lambdaRuntime); } });
+}
+
+
+void setReshadeState(int snapshotIndex, effect_runtime* runtime)
+{
+	g_presentWorkQueue.push({ [snapshotIndex](effect_runtime* lambdaRuntime) {g_reshadeStateController.setReshadeState(0, snapshotIndex, lambdaRuntime); } });
 }
 
 
@@ -291,32 +314,32 @@ static void displaySettings(reshade::api::effect_runtime *runtime)
 	// test code
 	if(ImGui::Button("Get snapshot 1"))
 	{
-		g_snapshotOne = getCurrentReshadeState(runtime);
+		getSnapshot(0, runtime);
 	}
 	ImGui::SameLine();
 	if(ImGui::Button("Set state to snapshot 1"))
 	{
-		g_snapshotOne.applyState(runtime);
+		setReshadeState(0, runtime);
 	}
 
 	if(ImGui::Button("Get snapshot 2"))
 	{
-		g_snapshotTwo = getCurrentReshadeState(runtime);
+		getSnapshot(1, runtime);
 	}
 	ImGui::SameLine();
 	if(ImGui::Button("Set state to snapshot 2"))
 	{
-		g_snapshotTwo.applyState(runtime);
+		setReshadeState(1, runtime);
 	}
 
 	if(ImGui::Button("Get snapshot 3"))
 	{
-		g_snapshotThree = getCurrentReshadeState(runtime);
+		getSnapshot(2, runtime);
 	}
 	ImGui::SameLine();
 	if(ImGui::Button("Set state to snapshot 3"))
 	{
-		g_snapshotThree.applyState(runtime);
+		setReshadeState(2, runtime);
 	}
 
 	ImGui::Checkbox("Interpolate", &g_interpolate);
@@ -326,25 +349,11 @@ static void displaySettings(reshade::api::effect_runtime *runtime)
 
 void onReshadeReloadEffects(effect_runtime* runtime)
 {
-	static bool firstCall = true;
-
-	// skip the first call as it's the one where all effects have been destroyed
-	// Feels very hacky. 
-	if(firstCall)
-	{
-		firstCall = false;
-		return;
-	}
-	firstCall = true;	// 
-
-	ReshadeStateSnapshot currentState;
-
-	currentState.obtainReshadeState(runtime);
-
-	// migrate collected snapshots.
-	g_snapshotOne.migrateState(currentState);
-	g_snapshotTwo.migrateState(currentState);
-	g_snapshotThree.migrateState(currentState);
+	// This call can be made in various scenarios, but they have either one of 2 characteristics: 1) there are 0 effects or 2) there are effects but they're changing.
+	// We can safely ignore the first one, as that's the one originating from the call to destroy_effects. All the other scenarios are from update_effects which is
+	// called in on_present and will end up raising the event in multiple scenarios.
+	// to make sure we only use the state controller from the present call, this migration call is added as a work item to perform in present.
+	g_reshadeStateController.migrateContainedHandles(runtime);
 }
 
 
@@ -361,9 +370,15 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID)
 		reshade::register_event<reshade::addon_event::reshade_overlay>(onReshadeOverlay);
 		reshade::register_event<reshade::addon_event::reshade_reloaded_effects>(onReshadeReloadEffects);
 		reshade::register_overlay(nullptr, &displaySettings);
+
+		// test code
+		g_reshadeStateController.addCameraPath();
+
 		break;
 	case DLL_PROCESS_DETACH:
 		reshade::unregister_event<reshade::addon_event::reshade_present>(onReshadePresent);
+		reshade::unregister_event<reshade::addon_event::reshade_overlay>(onReshadeOverlay);
+		reshade::unregister_event<reshade::addon_event::reshade_reloaded_effects>(onReshadeReloadEffects);
 		reshade::unregister_overlay(nullptr, &displaySettings);
 		reshade::unregister_addon(hModule);
 		if(nullptr!=g_dataFromCameraToolsBuffer)

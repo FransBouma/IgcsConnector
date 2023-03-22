@@ -79,11 +79,11 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <TargetExt>.addon</TargetExt>
+    <TargetExt>.addon64</TargetExt>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <TargetExt>.addon</TargetExt>
+    <TargetExt>.addon64</TargetExt>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -162,26 +162,32 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="CameraPathData.h" />
     <ClInclude Include="CameraToolsData.h" />
     <ClInclude Include="CDataFile.h" />
     <ClInclude Include="ConstantsEnums.h" />
     <ClInclude Include="EffectState.h" />
     <ClInclude Include="fpng.h" />
     <ClInclude Include="OverlayControl.h" />
+    <ClInclude Include="ReshadeStateController.h" />
     <ClInclude Include="ReshadeStateSnapshot.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="ScreenshotController.h" />
     <ClInclude Include="ScreenshotSettings.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="std_image_write.h" />
+    <ClInclude Include="ThreadSafeQueue.h" />
     <ClInclude Include="Utils.h" />
+    <ClInclude Include="WorkItem.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="CameraPathData.cpp" />
     <ClCompile Include="CDataFile.cpp" />
     <ClCompile Include="EffectState.cpp" />
     <ClCompile Include="fpng.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="OverlayControl.cpp" />
+    <ClCompile Include="ReshadeStateController.cpp" />
     <ClCompile Include="ReshadeStateSnapshot.cpp" />
     <ClCompile Include="ScreenshotController.cpp" />
     <ClCompile Include="Utils.cpp" />

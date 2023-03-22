@@ -26,6 +26,8 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 #pragma once
+#include <reshade.hpp>
+
 #include "stdafx.h"
 
 namespace IGCS::Utils
@@ -33,6 +35,7 @@ namespace IGCS::Utils
 	float degreesToRadians(float angleInDegrees);
 	std::string formatString(const char* fmt, ...);
 	std::string formatStringVa(const char* fmt, va_list args);
+	void logLineToReshade(const reshade::log_level logLevel, const char* fmt, ...);
 
 	BYTE CharToByte(char c);
 	bool stringStartsWith(const char *a, const char *b);
@@ -71,5 +74,4 @@ namespace IGCS::Utils
 	{
 		return (x + (s * (y - x)));
 	}
-
 }

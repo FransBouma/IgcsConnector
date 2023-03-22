@@ -40,6 +40,18 @@
     <ClInclude Include="EffectState.h">
       <Filter>Include</Filter>
     </ClInclude>
+    <ClInclude Include="ReshadeStateController.h">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="CameraPathData.h">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="ThreadSafeQueue.h">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="WorkItem.h">
+      <Filter>Include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Code">
@@ -78,6 +90,12 @@
       <Filter>Code</Filter>
     </ClCompile>
     <ClCompile Include="EffectState.cpp">
+      <Filter>Code</Filter>
+    </ClCompile>
+    <ClCompile Include="ReshadeStateController.cpp">
+      <Filter>Code</Filter>
+    </ClCompile>
+    <ClCompile Include="CameraPathData.cpp">
       <Filter>Code</Filter>
     </ClCompile>
   </ItemGroup>
