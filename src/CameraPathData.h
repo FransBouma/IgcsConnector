@@ -44,14 +44,17 @@ public:
 
 	static CameraPathData& getNonExisting();
 
-	void appendState(const ReshadeStateSnapshot& toAppend);
-	void removeState(int stateIndex);
-	void updateState(const ReshadeStateSnapshot& snapshot, int stateIndex);
+	void appendStateSnapshot(const ReshadeStateSnapshot& toAppend);
+	void removeStateSnapshot(int stateIndex);
+	void updateStateSnapshot(const ReshadeStateSnapshot& snapshot, int stateIndex);
 	void migratedContainedHandles(const ReshadeStateSnapshot& currentState);
 	void setReshadeState(int fromStateIndex, int toStateIndex, float interpolationFactor, reshade::api::effect_runtime* runtime);
 	void setReshadeState(int stateIndex, reshade::api::effect_runtime* runtime);
+	void insertStateSnapshotBeforeSnapshot(int indexToInsertBefore, const ReshadeStateSnapshot& reshadeStateSnapshot);
+	void appendStateSnapshotAfterSnapshot(int indexToAppendAfter, const ReshadeStateSnapshot& reshadeStateSnapshot);
 
 	bool isNonExisting() { return _isNonExisting; }
+	int numberOfSnapshots() { return _snapshots.size(); }
 
 private:
 	CameraPathData(bool isNonExisting);

@@ -50,13 +50,42 @@ CameraPathData& CameraPathData::getNonExisting()
 }
 
 
-void CameraPathData::appendState(const ReshadeStateSnapshot& toAppend)
+void CameraPathData::appendStateSnapshot(const ReshadeStateSnapshot& toAppend)
 {
 	_snapshots.push_back(toAppend);
 }
 
 
-void CameraPathData::removeState(int stateIndex)
+void CameraPathData::insertStateSnapshotBeforeSnapshot(int indexToInsertBefore, const ReshadeStateSnapshot& reshadeStateSnapshot)
+{
+	if(indexToInsertBefore<0 || indexToInsertBefore >= _snapshots.size())
+	{
+		return;
+	}
+	_snapshots.insert(_snapshots.begin() + indexToInsertBefore, reshadeStateSnapshot);
+}
+
+
+void CameraPathData::appendStateSnapshotAfterSnapshot(int indexToAppendAfter, const ReshadeStateSnapshot& reshadeStateSnapshot)
+{
+	if(indexToAppendAfter<0 || indexToAppendAfter>=_snapshots.size())
+	{
+		return;
+	}
+
+	if(indexToAppendAfter==_snapshots.size()-1)
+	{
+		// last node, append
+		_snapshots.push_back(reshadeStateSnapshot);
+	}
+	else
+	{
+		_snapshots.insert(_snapshots.begin() + indexToAppendAfter + 1, reshadeStateSnapshot);
+	}
+}
+
+
+void CameraPathData::removeStateSnapshot(int stateIndex)
 {
 	if(stateIndex<0 || stateIndex>=_snapshots.size())
 	{
@@ -66,7 +95,7 @@ void CameraPathData::removeState(int stateIndex)
 }
 
 
-void CameraPathData::updateState(const ReshadeStateSnapshot& snapshot, int stateIndex)
+void CameraPathData::updateStateSnapshot(const ReshadeStateSnapshot& snapshot, int stateIndex)
 {
 	if(stateIndex<0 || stateIndex>=_snapshots.size())
 	{

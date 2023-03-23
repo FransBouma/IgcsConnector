@@ -61,12 +61,15 @@ extern "C" __declspec(dllexport) const char *DESCRIPTION = "Add-on which allows 
 extern "C" __declspec(dllexport) bool connectFromCameraTools();
 extern "C" __declspec(dllexport) LPBYTE getDataFromCameraToolsBuffer();
 extern "C" __declspec(dllexport) void addCameraPath();
+extern "C" __declspec(dllexport) void appendStateSnapshotAfterSnapshotOnPath(int pathIndex, int indexToAppendAfter);
+extern "C" __declspec(dllexport) void appendStateSnapshotToPath(int pathIndex);
+extern "C" __declspec(dllexport) void clearPaths();
+extern "C" __declspec(dllexport) void insertStateSnapshotBeforeSnapshotOnPath(int pathIndex, int indexToInsertBefore);
 extern "C" __declspec(dllexport) void removeCameraPath(int pathIndex);
-extern "C" __declspec(dllexport) void appendStateToPath(int pathIndex);
-extern "C" __declspec(dllexport) void removeStateFromPath(int pathIndex, int stateIndex);
-extern "C" __declspec(dllexport) void updateStateOnPath(int pathIndex, int stateIndex);
+extern "C" __declspec(dllexport) void removeStateSnapshotFromPath(int pathIndex, int stateIndex);
 extern "C" __declspec(dllexport) void setReshadeStateInterpolated(int pathIndex, int fromStateIndex, int toStateIndex, float interpolationFactor);
 extern "C" __declspec(dllexport) void setReshadeState(int pathIndex, int stateIndex);
+extern "C" __declspec(dllexport) void updateStateSnapshotOnPath(int pathIndex, int stateIndex);
 
 static LPBYTE g_dataFromCameraToolsBuffer = nullptr;		// 8192 bytes buffer
 static ScreenshotSettings g_screenshotSettings;
@@ -107,6 +110,15 @@ LPBYTE getDataFromCameraToolsBuffer()
 
 
 /// <summary>
+/// Clears all contained camera paths
+/// </summary>
+void clearPaths()
+{
+	g_reshadeStateController.clearPaths();
+}
+
+
+/// <summary>
 /// Adds a camera path to the reshade state controller
 /// </summary>
 void addCameraPath()
@@ -129,22 +141,43 @@ void removeCameraPath(int pathIndex)
 /// Appends the current state to the path with the index specified
 /// </summary>
 /// <param name="pathIndex"></param>
-void appendStateToPath(int pathIndex)
+void appendStateSnapshotToPath(int pathIndex)
 {
 	// done deferred.
-	g_presentWorkQueue.push({ [pathIndex](effect_runtime* lambdaRuntime) {g_reshadeStateController.appendStateToPath(pathIndex, lambdaRuntime); } });
+	g_presentWorkQueue.push({ [pathIndex](effect_runtime* lambdaRuntime) {g_reshadeStateController.appendStateSnapshotToPath(pathIndex, lambdaRuntime); } });
 }
 
+
+/// <summary>
+/// Inserts the current state to the path with the index specified before the snapshot with the index specified. 
+/// </summary>
+/// <param name="pathIndex"></param>
+/// <param name="indexToInsertBefore"></param>
+void insertStateSnapshotBeforeSnapshotOnPath(int pathIndex, int indexToInsertBefore)
+{
+	g_presentWorkQueue.push({ [pathIndex, indexToInsertBefore](effect_runtime* lambdaRuntime) {g_reshadeStateController.insertStateSnapshotBeforeSnapshotOnPath(pathIndex, indexToInsertBefore, lambdaRuntime); } });
+}
+
+
+/// <summary>
+/// Appends the current state to the path with the index specified after the snapshot with the index specified
+/// </summary>
+/// <param name="pathIndex"></param>
+/// <param name="indexToAppendAfter"></param>
+void appendStateSnapshotAfterSnapshotOnPath(int pathIndex, int indexToAppendAfter)
+{
+	g_presentWorkQueue.push({ [pathIndex, indexToAppendAfter](effect_runtime* lambdaRuntime) {g_reshadeStateController.appendStateSnapshotAfterSnapshotOnPath(pathIndex, indexToAppendAfter, lambdaRuntime); } });
+}
 
 /// <summary>
 /// Update the state at offset stateIndex on path with index pathIndex to the current state
 /// </summary>
 /// <param name="pathIndex"></param>
 /// <param name="stateIndex"></param>
-void updateStateOnPath(int pathIndex, int stateIndex)
+void updateStateSnapshotOnPath(int pathIndex, int stateIndex)
 {
 	// done deferred.
-	g_presentWorkQueue.push({ [pathIndex, stateIndex](effect_runtime* lambdaRuntime) {g_reshadeStateController.updateStateOnPath(pathIndex, stateIndex, lambdaRuntime); } });
+	g_presentWorkQueue.push({ [pathIndex, stateIndex](effect_runtime* lambdaRuntime) {g_reshadeStateController.updateStateSnapshotOnPath(pathIndex, stateIndex, lambdaRuntime); } });
 }
 
 
@@ -153,9 +186,9 @@ void updateStateOnPath(int pathIndex, int stateIndex)
 /// </summary>
 /// <param name="pathIndex"></param>
 /// <param name="stateIndex"></param>
-void removeStateFromPath(int pathIndex, int stateIndex)
+void removeStateSnapshotFromPath(int pathIndex, int stateIndex)
 {
-	g_reshadeStateController.removeStateFromPath(pathIndex, stateIndex);
+	g_reshadeStateController.removeStateSnapshotFromPath(pathIndex, stateIndex);
 }
 
 
@@ -258,19 +291,19 @@ static void startScreenshotSession(bool isTestRun)
 }
 
 
-static void displaySettings(reshade::api::effect_runtime *runtime)
+static void displaySettings(reshade::api::effect_runtime* runtime)
 {
 	ImGui::AlignTextToFramePadding();
 	const auto cameraData = (CameraToolsData*)g_dataFromCameraToolsBuffer;
 	if(ImGui::CollapsingHeader("Screenshot features", ImGuiTreeNodeFlags_DefaultOpen))
 	{
-		if(g_screenshotController.cameraToolsConnected() && nullptr!=cameraData)
+		if(g_screenshotController.cameraToolsConnected() && nullptr != cameraData)
 		{
 			switch(g_screenshotController.getState())
 			{
-			case ScreenshotControllerState::Off:
-				{
-					ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.5f);
+				case ScreenshotControllerState::Off:
+					{
+						ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.5f);
 						ImGui::AlignTextToFramePadding();
 						ImGui::InputText("Screenshot output directory", g_screenshotSettings.screenshotFolder, 256);
 						ImGui::SliderInt("Number of frames to wait between steps", &g_screenshotSettings.numberOfFramesToWaitBetweenSteps, 1, 100);
@@ -282,49 +315,49 @@ static void displaySettings(reshade::api::effect_runtime *runtime)
 						ImGui::Combo("File type", &g_screenshotSettings.screenshotFileType, "Bmp\0Jpeg\0Png\0\0");
 						switch(g_screenshotSettings.typeOfScreenshot)
 						{
-						case (int)ScreenshotType::HorizontalPanorama:
-							ImGui::SliderFloat("Total field of view in panorama (in degrees)", &g_screenshotSettings.pano_totalAngleDegrees, 30.0f, 360.0f, "%.1f");
-							ImGui::SliderFloat("Percentage of overlap between shots", &g_screenshotSettings.pano_overlapPercentagePerShot, 0.1f, 99.0f, "%.1f");
-							break;
-						case (int)ScreenshotType::Lightfield:
-							ImGui::SliderFloat("Distance between Lightfield shots", &g_screenshotSettings.lightField_distanceBetweenShots, 0.0f, 5.0f, "%.3f");
-							ImGui::SliderInt("Number of shots to take", &g_screenshotSettings.lightField_numberOfShotsToTake, 0, 60);
-							break;
-							// others: ignore.
+							case (int)ScreenshotType::HorizontalPanorama:
+								ImGui::SliderFloat("Total field of view in panorama (in degrees)", &g_screenshotSettings.pano_totalAngleDegrees, 30.0f, 360.0f, "%.1f");
+								ImGui::SliderFloat("Percentage of overlap between shots", &g_screenshotSettings.pano_overlapPercentagePerShot, 0.1f, 99.0f, "%.1f");
+								break;
+							case (int)ScreenshotType::Lightfield:
+								ImGui::SliderFloat("Distance between Lightfield shots", &g_screenshotSettings.lightField_distanceBetweenShots, 0.0f, 5.0f, "%.3f");
+								ImGui::SliderInt("Number of shots to take", &g_screenshotSettings.lightField_numberOfShotsToTake, 0, 60);
+								break;
+								// others: ignore.
 						}
-					ImGui::PopItemWidth();
-					if(cameraData->cameraEnabled)
-					{
-						if(ImGui::Button("Start screenshot session"))
+						ImGui::PopItemWidth();
+						if(cameraData->cameraEnabled)
 						{
-							startScreenshotSession(false);
+							if(ImGui::Button("Start screenshot session"))
+							{
+								startScreenshotSession(false);
+							}
+							ImGui::SameLine();
+							if(ImGui::Button("Start test run"))
+							{
+								startScreenshotSession(true);
+							}
 						}
-						ImGui::SameLine();
-						if(ImGui::Button("Start test run"))
+						else
 						{
-							startScreenshotSession(true);
+							ImGui::Text("Camera disabled so no screenshot session can be started");
 						}
 					}
-					else
+					break;
+				case ScreenshotControllerState::InSession:
 					{
-						ImGui::Text("Camera disabled so no screenshot session can be started");
+						if(ImGui::Button("Cancel session"))
+						{
+							g_screenshotController.cancelSession();
+						}
 					}
-				}
-				break;
-			case ScreenshotControllerState::InSession:
-				{
-					if(ImGui::Button("Cancel session"))
-					{
-						g_screenshotController.cancelSession();
-					}
-				}
-				break;
-			case ScreenshotControllerState::Canceling:
-				ImGui::Text("Cancelling session...");
-				break;
-			case ScreenshotControllerState::SavingShots:
-				ImGui::Text("Saving shots...");
-				break;
+					break;
+				case ScreenshotControllerState::Canceling:
+					ImGui::Text("Cancelling session...");
+					break;
+				case ScreenshotControllerState::SavingShots:
+					ImGui::Text("Saving shots...");
+					break;
 			}
 		}
 		else
@@ -357,6 +390,31 @@ static void displaySettings(reshade::api::effect_runtime *runtime)
 			ImGui::InputFloat("Pitch (radians)", &cameraData->pitch, ImGuiInputTextFlags_ReadOnly);
 			ImGui::InputFloat("Yaw (radians)", &cameraData->yaw, ImGuiInputTextFlags_ReadOnly);
 			ImGui::InputFloat("Roll (radians)", &cameraData->roll, ImGuiInputTextFlags_ReadOnly);
+		}
+	}
+	ImGui::AlignTextToFramePadding();
+	if(ImGui::CollapsingHeader("Camera path info"))
+	{
+		if(nullptr==g_dataFromCameraToolsBuffer)
+		{
+			ImGui::Text("Camera path info not available");
+		}
+		else
+		{
+			ImGui::Text("Number of saved Reshade states per path:");
+
+			const auto numberOfPaths = g_reshadeStateController.numberOfPaths();
+			if(numberOfPaths<=0)
+			{
+				ImGui::Text("None.");
+			}
+			else
+			{
+				for(int i = 0; i < numberOfPaths; i++)
+				{
+					ImGui::Text("Path: %d. # of saved Reshade states: %d.", i, g_reshadeStateController.numberOfSnapshotsOnPath(i));
+				}
+			}
 		}
 	}
 }

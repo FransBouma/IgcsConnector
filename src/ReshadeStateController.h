@@ -46,18 +46,24 @@ class ReshadeStateController
 public:
 	void removeCameraPath(int pathIndex);
 	void addCameraPath();
-	void appendStateToPath(int pathIndex, reshade::api::effect_runtime* runtime);
-	void removeStateFromPath(int pathIndex, int stateIndex);
-	void updateStateOnPath(int pathIndex, int stateIndex, reshade::api::effect_runtime* runtime);
+	void appendStateSnapshotToPath(int pathIndex, reshade::api::effect_runtime* runtime);
+	void insertStateSnapshotBeforeSnapshotOnPath(int pathIndex, int indexToInsertBefore, reshade::api::effect_runtime* runtime);
+	void appendStateSnapshotAfterSnapshotOnPath(int pathIndex, int indexToAppendAfter, reshade::api::effect_runtime* runtime);
+	void removeStateSnapshotFromPath(int pathIndex, int stateIndex);
+	void updateStateSnapshotOnPath(int pathIndex, int stateIndex, reshade::api::effect_runtime* runtime);
 	void migrateContainedHandles(reshade::api::effect_runtime* runtime);
 	void setReshadeState(int pathIndex, int fromStateIndex, int toStateIndex, float interpolationFactor, reshade::api::effect_runtime* runtime);
 	void setReshadeState(int pathIndex, int stateIndex, reshade::api::effect_runtime* runtime);
+	void clearPaths();
+	int numberOfSnapshotsOnPath(int pathIndex);
+
+	int numberOfPaths() { return _cameraPathsData.size(); }
 
 private:
 	std::vector<CameraPathData> _cameraPathsData;
 	mutable std::mutex mutex_;
 
 	CameraPathData& getCameraPath(int pathIndex);
-	ReshadeStateSnapshot getCurrentReshadeState(reshade::api::effect_runtime* runtime);
+	ReshadeStateSnapshot getCurrentReshadeStateSnapshot(reshade::api::effect_runtime* runtime);
 };
 

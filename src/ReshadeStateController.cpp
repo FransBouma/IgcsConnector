@@ -53,7 +53,7 @@ void ReshadeStateController::addCameraPath()
 }
 
 
-void ReshadeStateController::appendStateToPath(int pathIndex, reshade::api::effect_runtime* runtime)
+void ReshadeStateController::appendStateSnapshotToPath(int pathIndex, reshade::api::effect_runtime* runtime)
 {
 	std::scoped_lock lock(mutex_);
 	CameraPathData& path = getCameraPath(pathIndex);
@@ -61,11 +61,11 @@ void ReshadeStateController::appendStateToPath(int pathIndex, reshade::api::effe
 	{
 		return;
 	}
-	path.appendState(getCurrentReshadeState(runtime));
+	path.appendStateSnapshot(getCurrentReshadeStateSnapshot(runtime));
 }
 
 
-void ReshadeStateController::removeStateFromPath(int pathIndex, int stateIndex)
+void ReshadeStateController::insertStateSnapshotBeforeSnapshotOnPath(int pathIndex, int indexToInsertBefore, reshade::api::effect_runtime* runtime)
 {
 	std::scoped_lock lock(mutex_);
 	CameraPathData& path = getCameraPath(pathIndex);
@@ -73,11 +73,11 @@ void ReshadeStateController::removeStateFromPath(int pathIndex, int stateIndex)
 	{
 		return;
 	}
-	path.removeState(stateIndex);
+	path.insertStateSnapshotBeforeSnapshot(indexToInsertBefore, getCurrentReshadeStateSnapshot(runtime));
 }
 
 
-void ReshadeStateController::updateStateOnPath(int pathIndex, int stateIndex, reshade::api::effect_runtime* runtime)
+void ReshadeStateController::appendStateSnapshotAfterSnapshotOnPath(int pathIndex, int indexToAppendAfter, reshade::api::effect_runtime* runtime)
 {
 	std::scoped_lock lock(mutex_);
 	CameraPathData& path = getCameraPath(pathIndex);
@@ -85,14 +85,38 @@ void ReshadeStateController::updateStateOnPath(int pathIndex, int stateIndex, re
 	{
 		return;
 	}
-	path.updateState(getCurrentReshadeState(runtime), stateIndex);
+	path.appendStateSnapshotAfterSnapshot(indexToAppendAfter, getCurrentReshadeStateSnapshot(runtime));
+}
+
+
+void ReshadeStateController::removeStateSnapshotFromPath(int pathIndex, int stateIndex)
+{
+	std::scoped_lock lock(mutex_);
+	CameraPathData& path = getCameraPath(pathIndex);
+	if(path.isNonExisting())
+	{
+		return;
+	}
+	path.removeStateSnapshot(stateIndex);
+}
+
+
+void ReshadeStateController::updateStateSnapshotOnPath(int pathIndex, int stateIndex, reshade::api::effect_runtime* runtime)
+{
+	std::scoped_lock lock(mutex_);
+	CameraPathData& path = getCameraPath(pathIndex);
+	if(path.isNonExisting())
+	{
+		return;
+	}
+	path.updateStateSnapshot(getCurrentReshadeStateSnapshot(runtime), stateIndex);
 }
 
 
 void ReshadeStateController::migrateContainedHandles(reshade::api::effect_runtime* runtime)
 {
 	std::scoped_lock lock(mutex_);
-	const ReshadeStateSnapshot currentState = getCurrentReshadeState(runtime);
+	const ReshadeStateSnapshot currentState = getCurrentReshadeStateSnapshot(runtime);
 
 	for(auto& path : _cameraPathsData)
 	{
@@ -126,6 +150,23 @@ void ReshadeStateController::setReshadeState(int pathIndex, int stateIndex, resh
 }
 
 
+void ReshadeStateController::clearPaths()
+{
+	_cameraPathsData.clear(); 
+}
+
+
+int ReshadeStateController::numberOfSnapshotsOnPath(int pathIndex)
+{
+	auto& path = getCameraPath(pathIndex);
+	if(path.isNonExisting())
+	{
+		return 0;
+	}
+	return path.numberOfSnapshots();
+}
+
+
 CameraPathData& ReshadeStateController::getCameraPath(int index)
 {
 	if(index<0 || index >= _cameraPathsData.size())
@@ -137,7 +178,7 @@ CameraPathData& ReshadeStateController::getCameraPath(int index)
 }
 
 
-ReshadeStateSnapshot ReshadeStateController::getCurrentReshadeState(reshade::api::effect_runtime* runtime)
+ReshadeStateSnapshot ReshadeStateController::getCurrentReshadeStateSnapshot(reshade::api::effect_runtime* runtime)
 {
 	ReshadeStateSnapshot currentState;
 
