@@ -412,7 +412,8 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 			{
 				for(int i = 0; i < numberOfPaths; i++)
 				{
-					ImGui::Text("Path: %d. # of saved Reshade states: %d.", i, g_reshadeStateController.numberOfSnapshotsOnPath(i));
+					// path no's are starting at 0 but for display purposes we start at 1.
+					ImGui::Text("Path: %d. # of saved Reshade states: %d.", (i + 1), g_reshadeStateController.numberOfSnapshotsOnPath(i));
 				}
 			}
 		}
