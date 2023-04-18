@@ -36,7 +36,6 @@
 #include <reshade.hpp>
 #include <string>
 #include <unordered_map>
-
 #include "EffectState.h"
 
 /// <summary>
@@ -54,9 +53,12 @@ public:
 	void migrateState(const ReshadeStateSnapshot& currentState);
 	void obtainReshadeState(reshade::api::effect_runtime* runtime);
 	void applyStateFromTo(const ReshadeStateSnapshot& snapShotDestination, float interpolationFactor, reshade::api::effect_runtime* runtime);
+	ReshadeStateSnapshot getNewlyEnabledEffects(const ReshadeStateSnapshot& originalSnapshot) const;
+	void addNewlyEnabledEffects(const ReshadeStateSnapshot& snapShotWithNewlyEnabledEffectsToCopy);
 
 	bool isEmpty() const { return _effectStatePerEffectName.size() <= 0; }
 	int numberOfContainedEffects() { return _effectStatePerEffectName.size(); }
+	void logContents();
 
 private:
 	void addEffectState(EffectState toAdd);

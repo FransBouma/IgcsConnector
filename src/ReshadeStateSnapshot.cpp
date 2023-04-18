@@ -33,10 +33,28 @@
 
 #include "ReshadeStateSnapshot.h"
 
+#include <ranges>
 #include <unordered_set>
 #include <unordered_map>
 
 #include "EffectState.h"
+#include "Utils.h"
+
+
+void ReshadeStateSnapshot::logContents()
+{
+	reshade::log_message(reshade::log_level::info, "\tTechniques: ");
+	for(auto& kvp : _techniqueEnabledPerName)
+	{
+		reshade::log_message(reshade::log_level::info, IGCS::Utils::formatString("\t\t%s. Enabled: %s", kvp.first.c_str(), kvp.second ? "true" : "false").c_str());
+	}
+
+	reshade::log_message(reshade::log_level::info, "\tEffects: ");
+	for(const auto& effectName : _effectStatePerEffectName | std::views::keys)
+	{
+		reshade::log_message(reshade::log_level::info, IGCS::Utils::formatString("\t\t%s", effectName.c_str()).c_str());
+	}
+}
 
 
 void ReshadeStateSnapshot::addEffectState(EffectState toAdd)
@@ -80,8 +98,7 @@ void ReshadeStateSnapshot::migrateState(const ReshadeStateSnapshot& currentState
 	{
 		if(!_effectStatePerEffectName.contains(nameEffectPair.first))
 		{
-			// not known yet, add it
-			addEffectState(nameEffectPair.second);
+			// not known. We can ignore it as we don't store uniforms for unknown effects (it's the same as having an effect / technique being disabled).
 			continue;
 		}
 		// it's there, migrate id's
@@ -195,5 +212,65 @@ void ReshadeStateSnapshot::applyStateFromTo(const ReshadeStateSnapshot& snapShot
 
 		const auto id = _techniqueIdPerName[nameIsEnabledPair.first];
 		runtime->set_technique_state(reshade::api::effect_technique(id), newTechniqueState);
+	}
+}
+
+
+ReshadeStateSnapshot ReshadeStateSnapshot::getNewlyEnabledEffects(const ReshadeStateSnapshot& originalSnapshot) const
+{
+	// only return the newly enabled effects. effects that have been disabled now aren't reported.
+	ReshadeStateSnapshot toReturn;
+
+	// techniques
+	for (const auto& [techniqueName, isEnabled] : _techniqueEnabledPerName)
+	{
+		auto originalKvp = originalSnapshot._techniqueEnabledPerName.find(techniqueName);
+		if(originalKvp == originalSnapshot._techniqueEnabledPerName.end() || (isEnabled && !originalKvp->second))
+		{
+			// this technique is now enabled or wasn't present in the original and is now present, so copy it over.
+			toReturn._techniqueEnabledPerName[techniqueName] = isEnabled;
+			toReturn._techniqueIdPerName[techniqueName] = _techniqueIdPerName.at(techniqueName);		// id entry is there as we add them together.
+		}
+	}
+
+	// effects
+	for(const auto& [effectName, effectState] : _effectStatePerEffectName)
+	{
+		if(!originalSnapshot._effectStatePerEffectName.contains(effectName))
+		{
+			// not found, so it's new in this snapshot, so we have to copy it over.
+			toReturn._effectStatePerEffectName[effectName] = effectState;
+		}
+	}
+
+	return toReturn;
+}
+
+
+void ReshadeStateSnapshot::addNewlyEnabledEffects(const ReshadeStateSnapshot& snapShotWithNewlyEnabledEffectsToCopy)
+{
+	// snapShotWithNewlyEnabledEffectsToCopy contains effects that should be copied to this snapshot. If we already have the effects
+	// we'll skip it, otherwise we'll copy the effects. We'll also set the enabled flags on the techniques if they're set in the snapShotWithNewlyEnabledEffectsToCopy.
+
+	// techniques
+	for(const auto& [techniqueName, isEnabled] : snapShotWithNewlyEnabledEffectsToCopy._techniqueEnabledPerName)
+	{
+		auto currentKvp = _techniqueEnabledPerName.find(techniqueName);
+		if(currentKvp == _techniqueEnabledPerName.end() || (isEnabled && !currentKvp->second))
+		{
+			// this technique is now enabled or wasn't present yet, so copy it over.
+			_techniqueEnabledPerName[techniqueName] = isEnabled;
+			_techniqueIdPerName[techniqueName] = _techniqueIdPerName.at(techniqueName);		// id entry is there as we add them together.
+		}
+	}
+
+	// effects
+	for(const auto& [effectName, effectState] : snapShotWithNewlyEnabledEffectsToCopy._effectStatePerEffectName)
+	{
+		if(!_effectStatePerEffectName.contains(effectName))
+		{
+			// not found, so it's new in this snapshot, so we have to copy it over.
+			_effectStatePerEffectName[effectName] = effectState;
+		}
 	}
 }

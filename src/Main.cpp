@@ -76,7 +76,7 @@ static ScreenshotSettings g_screenshotSettings;
 static ScreenshotController g_screenshotController;
 static ReshadeStateController g_reshadeStateController;
 static IGCS::ThreadSafeQueue<WorkItem> g_presentWorkQueue;
-
+static bool g_recordReshadeState = true;
 
 /// <summary>
 /// Entry point for IGCS camera tools. Call this to initialize the buffers. Obtain the buffers using the getDataFrom/ToCameraToolsBuffer functions
@@ -123,6 +123,10 @@ void clearPaths()
 /// </summary>
 void addCameraPath()
 {
+	if(!g_recordReshadeState)
+	{
+		return;
+	}
 	g_reshadeStateController.addCameraPath();
 }
 
@@ -143,6 +147,11 @@ void removeCameraPath(int pathIndex)
 /// <param name="pathIndex"></param>
 void appendStateSnapshotToPath(int pathIndex)
 {
+	if(!g_recordReshadeState)
+	{
+		return;
+	}
+
 	// done deferred.
 	g_presentWorkQueue.push({ [pathIndex](effect_runtime* lambdaRuntime) {g_reshadeStateController.appendStateSnapshotToPath(pathIndex, lambdaRuntime); } });
 }
@@ -155,6 +164,11 @@ void appendStateSnapshotToPath(int pathIndex)
 /// <param name="indexToInsertBefore"></param>
 void insertStateSnapshotBeforeSnapshotOnPath(int pathIndex, int indexToInsertBefore)
 {
+	if(!g_recordReshadeState)
+	{
+		return;
+	}
+	// done deferred
 	g_presentWorkQueue.push({ [pathIndex, indexToInsertBefore](effect_runtime* lambdaRuntime) {g_reshadeStateController.insertStateSnapshotBeforeSnapshotOnPath(pathIndex, indexToInsertBefore, lambdaRuntime); } });
 }
 
@@ -166,6 +180,11 @@ void insertStateSnapshotBeforeSnapshotOnPath(int pathIndex, int indexToInsertBef
 /// <param name="indexToAppendAfter"></param>
 void appendStateSnapshotAfterSnapshotOnPath(int pathIndex, int indexToAppendAfter)
 {
+	if(!g_recordReshadeState)
+	{
+		return;
+	}
+	// done deferred
 	g_presentWorkQueue.push({ [pathIndex, indexToAppendAfter](effect_runtime* lambdaRuntime) {g_reshadeStateController.appendStateSnapshotAfterSnapshotOnPath(pathIndex, indexToAppendAfter, lambdaRuntime); } });
 }
 
@@ -176,6 +195,10 @@ void appendStateSnapshotAfterSnapshotOnPath(int pathIndex, int indexToAppendAfte
 /// <param name="stateIndex"></param>
 void updateStateSnapshotOnPath(int pathIndex, int stateIndex)
 {
+	if(!g_recordReshadeState)
+	{
+		return;
+	}
 	// done deferred.
 	g_presentWorkQueue.push({ [pathIndex, stateIndex](effect_runtime* lambdaRuntime) {g_reshadeStateController.updateStateSnapshotOnPath(pathIndex, stateIndex, lambdaRuntime); } });
 }
@@ -201,6 +224,11 @@ void removeStateSnapshotFromPath(int pathIndex, int stateIndex)
 /// <param name="interpolationFactor">if 0.0 the state will be fromState, if 1.0 the state will be toState, any value between 0 and 1 will be an interpolation using lerp of fromState and toState</param>
 void setReshadeStateInterpolated(int pathIndex, int fromStateIndex, int toStateIndex, float interpolationFactor)
 {
+	if(!g_recordReshadeState)
+	{
+		return;
+	}
+
 	// done deferred
 	g_presentWorkQueue.push({ [pathIndex, fromStateIndex, toStateIndex, interpolationFactor](effect_runtime* lambdaRuntime)
 	{
@@ -216,6 +244,11 @@ void setReshadeStateInterpolated(int pathIndex, int fromStateIndex, int toStateI
 /// <param name="stateIndex"></param>
 void setReshadeState(int pathIndex, int stateIndex)
 {
+	if(!g_recordReshadeState)
+	{
+		return;
+	}
+
 	// done deferred
 	g_presentWorkQueue.push({ [pathIndex, stateIndex](effect_runtime* lambdaRuntime) {g_reshadeStateController.setReshadeState(pathIndex, stateIndex, lambdaRuntime); } });
 }
@@ -401,7 +434,8 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 		}
 		else
 		{
-			ImGui::Text("Number of saved Reshade states per path:");
+			ImGui::Checkbox("Record ReShade state with camera nodes", &g_recordReshadeState);
+			ImGui::Text("Number of saved ReShade states per path:");
 
 			const auto numberOfPaths = g_reshadeStateController.numberOfPaths();
 			if(numberOfPaths<=0)

@@ -32,6 +32,8 @@
 /////////////////////////////////////////////////////////////////////////
 
 #include "CameraPathData.h"
+#include "Utils.h"
+#include "ReshadeStateSnapshot.h"
 
 CameraPathData::CameraPathData() : CameraPathData(false)
 {
@@ -62,7 +64,11 @@ void CameraPathData::insertStateSnapshotBeforeSnapshot(int indexToInsertBefore, 
 	{
 		return;
 	}
+	const auto& nextSnapshot = _snapshots[indexToInsertBefore];
+	const auto onlyNewlyEnabledEffectsSnapshot = reshadeStateSnapshot.getNewlyEnabledEffects(nextSnapshot);
 	_snapshots.insert(_snapshots.begin() + indexToInsertBefore, reshadeStateSnapshot);
+	// propagate the effects which are enabled in the new node to the following nodes.
+	propagateNewlyEnabledEffects(indexToInsertBefore, onlyNewlyEnabledEffectsSnapshot);
 }
 
 
@@ -80,7 +86,12 @@ void CameraPathData::appendStateSnapshotAfterSnapshot(int indexToAppendAfter, co
 	}
 	else
 	{
+		const auto& nextSnapshot = _snapshots[indexToAppendAfter + 1];
+		const auto onlyNewlyEnabledEffectsSnapshot = reshadeStateSnapshot.getNewlyEnabledEffects(nextSnapshot);
 		_snapshots.insert(_snapshots.begin() + indexToAppendAfter + 1, reshadeStateSnapshot);
+		// propagate the effects which are enabled in the new node to the following nodes.
+		// pass + 2 as we've inserted a new entry!
+		propagateNewlyEnabledEffects(indexToAppendAfter + 2, onlyNewlyEnabledEffectsSnapshot);
 	}
 }
 
@@ -101,7 +112,12 @@ void CameraPathData::updateStateSnapshot(const ReshadeStateSnapshot& snapshot, i
 	{
 		return;
 	}
+
+	// we first have to check which shaders are now enabled. These have to be copied to the nodes after this one so it's easy for the user to define effect states on an existing path.
+	const auto& currentSnapshot = _snapshots[stateIndex];
+	const auto onlyNewlyEnabledEffectsSnapshot = snapshot.getNewlyEnabledEffects(currentSnapshot);
 	_snapshots[stateIndex] = snapshot;
+	propagateNewlyEnabledEffects(stateIndex+1, onlyNewlyEnabledEffectsSnapshot);
 }
 
 
@@ -136,3 +152,16 @@ void CameraPathData::setReshadeState(int stateIndex, reshade::api::effect_runtim
 	state.applyState(runtime);
 }
 
+
+void CameraPathData::propagateNewlyEnabledEffects(int startIndex, const ReshadeStateSnapshot& snapShotWithNewlyEnabledEffectsToCopy)
+{
+	if(snapShotWithNewlyEnabledEffectsToCopy.isEmpty())
+	{
+		return;
+	}
+	for(int i = startIndex;i<_snapshots.size();i++)
+	{
+		auto& snapshot = _snapshots[i];
+		snapshot.addNewlyEnabledEffects(snapShotWithNewlyEnabledEffectsToCopy);
+	}
+}

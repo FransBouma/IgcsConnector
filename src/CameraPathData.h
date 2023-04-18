@@ -59,6 +59,14 @@ public:
 private:
 	CameraPathData(bool isNonExisting);
 
+	/// <summary>
+	/// Copies the effects present in snapShotWithNewlyEnabledEffectsToCopy to the snapshots starting at index startIndex if they're not already
+	///	present. 
+	/// </summary>
+	/// <param name="startIndex"></param>
+	/// <param name="snapShotWithNewlyEnabledEffectsToCopy"></param>
+	void propagateNewlyEnabledEffects(int startIndex, const ReshadeStateSnapshot& snapShotWithNewlyEnabledEffectsToCopy);
+
 	bool _isNonExisting = false;
 
 	std::vector<ReshadeStateSnapshot> _snapshots;
