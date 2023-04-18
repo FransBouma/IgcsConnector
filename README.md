@@ -79,21 +79,21 @@ camera path node in the IGCSClient of the connected camera tools. When you play 
 the camera path nodes the camera path is currently in. This way you can add powerful effects along your camera paths like dynamic depth of field, fog or any 
 other ReShade effect you have at your disposal. 
 
-If you don't want to record reshade effects, you can disable it by unchecking the *Record ReShade state with camera nodes* checkbox in the addon's settings in 
+If you don't want to record ReShade effects, you can disable it by unchecking the *Record ReShade state with camera nodes* checkbox in the addon's settings in 
 the ReShade overlay. 
 
 This all might sound complicated, so let's go through a tutorial.
 
-#### How to record and playback reshade efffects along a camera path
+#### How to record and playback ReShade efffects along a camera path
 
-Say you created a camera path with four nodes and have no ReShade effects active. Playing back this camera path will change no effect within reshade. Now you 
+Say you created a camera path with four nodes and have no ReShade effects active. Playing back this camera path will change no effect within ReShade. Now you 
 want to add some Depth of Field starting at node two and ending at the end. Open the camera path window in the IGCS Client at the bottom and move to node two 
 on the path. Now go to the game window and open ReShade and enable the Depth of Field shader you want to use, e.g. Cinematic DOF. Use manual focusing and
 set up the focus and blur settings the way you like it for that node. To store the ReShade state for this node, go back to the camera path window and click 
 the pencil icon next to the node. 
 
 When you move to node three and four you'll see the Depth of Field shader is now also active for these nodes. What's left is to setup the focus and blur for 
-node three and four. So in the camera path window move to node three and go back to the reshade window and change the Depth of Field focus and blur so it's 
+node three and four. So in the camera path window move to node three and go back to the ReShade window and change the Depth of Field focus and blur so it's 
 correct for where the camera should be focusing on. When you're done, go back to the camera path window and click the pencil icon again to update the 
 camera path node. 
 
@@ -101,7 +101,7 @@ Do the same for node four. When you now play back the camera path you'll see the
 the path while the camera is moving. The IGCSConnector addon will interpolate between the settings for the Depth of Field shader (and other effects you 
 might have enabled) of the camera path nodes. As on node one no Depth of Field shader was active it's not enabled. 
 
-To fix that, go back to the camera path window, move to node one and then go back to reshade and enable the Depth of Field shader, and e.g. set the blur to 0.0. 
+To fix that, go back to the camera path window, move to node one and then go back to ReShade and enable the Depth of Field shader, and e.g. set the blur to 0.0. 
 Don't forget to click the pencil icon in the camera path window. 
 
 #### What's interpolated
@@ -110,7 +110,7 @@ The IGCSConnector will interpolate only floating point values. So if you change 
 a '.' in it, so 1.3 is a floating point value, 1 isn't) it can't be interpolated and it won't change during camera path playback. The same goes for other types
 of settings like drop down lists and e.g. checkboxes. 
 
-You can enable as much reshade effects as you like, so go wild!
+You can enable as much ReShade effects as you like, so go wild!
 
 ## Supported cameras
 
