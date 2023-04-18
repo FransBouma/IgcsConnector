@@ -1,20 +1,23 @@
 # IGCS Connector
-Reshade 5.1+ addin to create automated horizontal panorama shots and lightfield shots using IGCS based camera's. It also shows live camera information
-obtained from the game engine. It will work with the camera versions listed below as the cameras have to be prepared to work with the connector. 
+ReShade 5.8+ addin to perform various actions within ReShade for connected camera tools. Features include: create automated horizontal panorama shots and lightfield shots and recording and playback of ReShade shaders during a camera path. Additionally, it also shows live camera information
+obtained from the game engine. The documentation page of the camera tools for a particular game on the [Otis Photomode Mods site](https://opm.fransbouma.com) will 
+mention if it supports the IGCSConnector and which version.
 
 There's no 32bit version as there's no 32bit IGCS camera system prepared with the required API nor will there be in the future.
 
+Requirements: ReShade 5.8+ with addon support, supported IGCS based camera tools.
+
 ## How to use
-Place the `Igcsconnector.addon` in the same folder as where the game exe is located. This is in most cases the same folder as where the Reshade 5.1+ dll
-is located. Only for games which use Vulkan, the Reshade dll is likely elsewhere. For Unreal Engine powered games there might be two
+Place the `Igcsconnector.addon64` in the same folder as where the game exe is located. This is in most cases the same folder as where the ReShade 5.8+ dll
+is located. Only for games which use Vulkan, the ReShade dll is likely elsewhere. For Unreal Engine powered games there might be two
 game exe's: one in the game's installation folder, and one in a folder deeper into that folder, e.g. 
 `GameName\Binaries\Win64\GameName-Win64-Shipping.exe`; the IGCS Connector addon has to be in that second folder, in our example:
-`GameName\Binaries\Win64`. Reshade has to be placed in that folder as well.
+`GameName\Binaries\Win64`. ReShade has to be placed in that folder as well.
 
-Be sure to use the Reshade version which supports Addons (so the unsigned version). When you start your game, the `Addons` tab in 
-the Reshade gui should show the IGCS Connector information and controls. 
+Be sure to use the ReShade version which supports Addons (so the unsigned version). When you start your game, the `Addons` tab in 
+the ReShade gui should show the IGCS Connector information and controls. 
 
-To obtain the unsigned Reshade version, go to <https://reshade.me> and click on *Download*, then on the grey button to download the ReShade version with Add-on support. 
+To obtain the unsigned ReShade version, go to <https://ReShade.me> and click on *Download*, then on the bottom green button to download the **ReShade version with Add-on support**. 
 
 ## Available features
 
@@ -69,14 +72,48 @@ View (fov) in degrees and the camera quaternion.
 
 This information is read-only. 
 
+### Recording and playback of ReShade states during camera paths
+
+Starting with v2.0, the IGCSConnector will record the active ReShade state (which is: which effects are enabled with which parameters) when you add or update a 
+camera path node in the IGCSClient of the connected camera tools. When you play back the camera path, the IGCSConnector will interpolate between the two states of
+the camera path nodes the camera path is currently in. This way you can add powerful effects along your camera paths like dynamic depth of field, fog or any 
+other ReShade effect you have at your disposal. 
+
+If you don't want to record reshade effects, you can disable it by unchecking the *Record ReShade state with camera nodes* checkbox in the addon's settings in 
+the ReShade overlay. 
+
+This all might sound complicated, so let's go through a tutorial.
+
+#### How to record and playback reshade efffects along a camera path
+
+Say you created a camera path with four nodes and have no ReShade effects active. Playing back this camera path will change no effect within reshade. Now you 
+want to add some Depth of Field starting at node two and ending at the end. Open the camera path window in the IGCS Client at the bottom and move to node two 
+on the path. Now go to the game window and open ReShade and enable the Depth of Field shader you want to use, e.g. Cinematic DOF. Use manual focusing and
+set up the focus and blur settings the way you like it for that node. To store the ReShade state for this node, go back to the camera path window and click 
+the pencil icon next to the node. 
+
+When you move to node three and four you'll see the Depth of Field shader is now also active for these nodes. What's left is to setup the focus and blur for 
+node three and four. So in the camera path window move to node three and go back to the reshade window and change the Depth of Field focus and blur so it's 
+correct for where the camera should be focusing on. When you're done, go back to the camera path window and click the pencil icon again to update the 
+camera path node. 
+
+Do the same for node four. When you now play back the camera path you'll see the Depth of Field effect being switched on at node two and it's updated along 
+the path while the camera is moving. The IGCSConnector addon will interpolate between the settings for the Depth of Field shader (and other effects you 
+might have enabled) of the camera path nodes. As on node one no Depth of Field shader was active it's not enabled. 
+
+To fix that, go back to the camera path window, move to node one and then go back to reshade and enable the Depth of Field shader, and e.g. set the blur to 0.0. 
+Don't forget to click the pencil icon in the camera path window. 
+
+#### What's interpolated
+
+The IGCSConnector will interpolate only floating point values. So if you change a value that's not a floating point value (a floating point value is a value with
+a '.' in it, so 1.3 is a floating point value, 1 isn't) it can't be interpolated and it won't change during camera path playback. The same goes for other types
+of settings like drop down lists and e.g. checkboxes. 
+
+You can enable as much reshade effects as you like, so go wild!
+
 ## Supported cameras
 
-The following cameras are supported with this addon: (All cameras are available on my [Patreon](https://patreon.com/Otis_Inf) )
+Camera's build with the latest IGCS system are supported. All cameras are available on my [Patreon](https://patreon.com/Otis_Inf). Please check 
+the [camera documentation site](https://opm.fransbouma.com) for details per camera if they support the IGCSConnector and which version. 
 
-Camera tools | Version
---|--
-Batman Arkham Knight: v1.0.8
-Cyberpunk 2077 | v1.0.18
-Elden Ring | v1.0.9
-Universal Unreal Engine Unlocker | v4.3+
-The Witcher 3: Wild Hunt | v1.0.5
