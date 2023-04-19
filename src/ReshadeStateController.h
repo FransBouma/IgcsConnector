@@ -61,7 +61,7 @@ public:
 
 private:
 	std::vector<CameraPathData> _cameraPathsData;
-	mutable std::mutex mutex_;
+	std::mutex _apiMutex;
 
 	CameraPathData& getCameraPath(int pathIndex);
 	ReshadeStateSnapshot getCurrentReshadeStateSnapshot(reshade::api::effect_runtime* runtime);
