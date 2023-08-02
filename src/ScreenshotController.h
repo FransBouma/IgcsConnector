@@ -35,48 +35,15 @@
 #include <reshade_api.hpp>
 #include <string>
 
+#include "CameraToolsConnector.h"
 #include "ConstantsEnums.h"
-
-/// <summary>
-/// Starts a screenshot session of the specified type
-/// </summary>
-///	<param name="type">specifies the screenshot session type:</param>
-///	0: Normal panorama
-/// 1: Lightfield (horizontal steps for 3D lightfield)
-/// <returns>0 if the session was successfully started or a value > 0 if not:
-/// 1 if the camera wasn't enabled
-/// 2 if a camera path is playing
-/// 3 if there was already a session active
-/// 4 if camera feature isn't available
-/// 5 if another error occurred</returns>
-typedef ScreenshotSessionStartReturnCode (__stdcall* IGCS_StartScreenshotSession)(uint8_t type);
-/// <summary>
-/// Rotates the camera in the current session over the specified stepAngle.
-/// </summary>
-/// <param name="stepAngle">
-/// stepAngle is the angle (in radians) to rotate over to the right. Negative means the camera will rotate to the left.
-/// </param>
-///	<remarks>stepAngle isn't divided by movementspeed/rotation speed yet, so it has to be done locally in the camerafeaturebase.</remarks>
-typedef void (__stdcall* IGCS_MoveCameraPanorama)(float stepAngle);
-/// <summary>
-/// Moves the camera up/down/left/right based on the values specified and whether that's relative to the start location or to the current camera location.
-/// </summary>
-/// <param name="stepLeftRight">The amount to step left/right. Negative values will make the camera move to the left, positive values make the camera move to the right</param>
-/// <param name="stepUpDown">The amount to step up/down. Negative values with make the camera move down, positive values make the camera move up</param>
-/// <param name="fovDegrees">The fov in degrees to use for the step. If &lt= 0, the value is ignored</param>
-/// <param name="fromStartPosition">If true the values specified will be relative to the start location of the session, otherwise to the current location of the camera</param>
-typedef void(__stdcall* IGCS_MoveCameraMultishot)(float stepLeftRight, float stepUpDown, float fovDegrees, bool fromStartPosition);
-/// <summary>
-/// Ends the active screenshot session, restoring camera data if required.
-/// </summary>
-typedef void (__stdcall* IGCS_EndScreenshotSession)();
 
 
 // Simple controller class which controls the screenshot session.
 class ScreenshotController
 {
 public:
-	ScreenshotController();
+	ScreenshotController(CameraToolsConnector& connector);
 	~ScreenshotController() = default;
 
 	void configure(std::string rootFolder, int numberOfFramesToWaitBetweenSteps, ScreenshotFiletype filetype);
@@ -89,16 +56,8 @@ public:
 	void presentCalled();
 	void reshadeEffectsRendered(reshade::api::effect_runtime* runtime);
 	void cancelSession();
-
-	/// <summary>
-	/// Connects to the camera tools, after the camera tools have called connectFromCameraTools(). it's done this way
-	///	so other addins can also communicate with the camera tools without a required call from the camera tools. 
-	/// </summary>
-	void connectToCameraTools();
 	void completeShotSession();
 	void displayScreenshotSessionStartError(ScreenshotSessionStartReturnCode sessionStartResult);
-
-	bool cameraToolsConnected() { return (nullptr != _igcs_MoveCameraPanoramaFunc && nullptr != _igcs_EndScreenshotSessionFunc && nullptr != _igcs_StartScreenshotSessionFunc && nullptr!= _igcs_MoveCameraMultishotFunc); }
 
 private:
 	/// <summary>
@@ -116,12 +75,8 @@ private:
 	void moveCameraForDebugGrid(int shotCounter, bool end);
 	void modifyCamera();
 	std::string typeOfShotAsString();
+	CameraToolsConnector& _cameraToolsConnector;
 
-	IGCS_StartScreenshotSession _igcs_StartScreenshotSessionFunc = nullptr;
-	IGCS_MoveCameraPanorama _igcs_MoveCameraPanoramaFunc = nullptr;
-	IGCS_MoveCameraMultishot _igcs_MoveCameraMultishotFunc = nullptr;
-	IGCS_EndScreenshotSession _igcs_EndScreenshotSessionFunc = nullptr;
-	
 	float _pano_totalFoVRadians = 0.0f;
 	float _pano_currentFoVRadians = 0.0f;
 	float _pano_anglePerStep = 0.0f;

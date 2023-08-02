@@ -44,6 +44,7 @@
 #include <string>
 
 #include "CameraToolsData.h"
+#include "DepthOfFieldController.h"
 #include "ScreenshotController.h"
 #include "ScreenshotSettings.h"
 #include "OverlayControl.h"
@@ -72,8 +73,10 @@ extern "C" __declspec(dllexport) void setReshadeState(int pathIndex, int stateIn
 extern "C" __declspec(dllexport) void updateStateSnapshotOnPath(int pathIndex, int stateIndex);
 
 static LPBYTE g_dataFromCameraToolsBuffer = nullptr;		// 8192 bytes buffer
+static CameraToolsConnector g_cameraToolsConnector;
 static ScreenshotSettings g_screenshotSettings;
-static ScreenshotController g_screenshotController;
+static ScreenshotController g_screenshotController(g_cameraToolsConnector);
+static DepthOfFieldController g_depthOfFieldController(g_cameraToolsConnector);
 static ReshadeStateController g_reshadeStateController;
 static IGCS::ThreadSafeQueue<WorkItem> g_presentWorkQueue;
 static bool g_recordReshadeState = true;
@@ -93,7 +96,7 @@ bool connectFromCameraTools()
 	g_dataFromCameraToolsBuffer = (LPBYTE)calloc(8 * 1024, 1);
 
 	// connect back to the camera tools
-	g_screenshotController.connectToCameraTools();
+	g_cameraToolsConnector.connectToCameraTools();
 
 	return g_dataFromCameraToolsBuffer!=nullptr;
 }
@@ -312,7 +315,7 @@ static void startScreenshotSession(bool isTestRun)
 	case (int)ScreenshotType::HorizontalPanorama:
 		g_screenshotController.startHorizontalPanoramaShot(g_screenshotSettings.pano_totalAngleDegrees, g_screenshotSettings.pano_overlapPercentagePerShot, cameraData->fov, isTestRun);
 		break;
-	case (int)ScreenshotType::Lightfield:
+	case (int)ScreenshotType::MultiShot:
 		g_screenshotController.startLightfieldShot(g_screenshotSettings.lightField_distanceBetweenShots, g_screenshotSettings.lightField_numberOfShotsToTake, isTestRun);
 		break;
 #ifdef _DEBUG
@@ -330,7 +333,7 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 	const auto cameraData = (CameraToolsData*)g_dataFromCameraToolsBuffer;
 	if(ImGui::CollapsingHeader("Screenshot features", ImGuiTreeNodeFlags_DefaultOpen))
 	{
-		if(g_screenshotController.cameraToolsConnected() && nullptr != cameraData)
+		if(g_cameraToolsConnector.cameraToolsConnected() && nullptr != cameraData)
 		{
 			switch(g_screenshotController.getState())
 			{
@@ -352,7 +355,7 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 								ImGui::SliderFloat("Total field of view in panorama (in degrees)", &g_screenshotSettings.pano_totalAngleDegrees, 30.0f, 360.0f, "%.1f");
 								ImGui::SliderFloat("Percentage of overlap between shots", &g_screenshotSettings.pano_overlapPercentagePerShot, 0.1f, 99.0f, "%.1f");
 								break;
-							case (int)ScreenshotType::Lightfield:
+							case (int)ScreenshotType::MultiShot:
 								ImGui::SliderFloat("Distance between Lightfield shots", &g_screenshotSettings.lightField_distanceBetweenShots, 0.0f, 5.0f, "%.3f");
 								ImGui::SliderInt("Number of shots to take", &g_screenshotSettings.lightField_numberOfShotsToTake, 0, 60);
 								break;
@@ -396,6 +399,77 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 		else
 		{
 			ImGui::Text("Camera tools not available");
+		}
+	}
+
+	ImGui::AlignTextToFramePadding();
+	if(ImGui::CollapsingHeader("Depth of Field control", ImGuiTreeNodeFlags_DefaultOpen) && nullptr != g_dataFromCameraToolsBuffer)
+	{
+		// start: button with 'Start session'
+		// step 1: set value A and B and show Render button
+		// step 2: rendering: show 'Done' and 'Cancel' buttons
+		// end: go back to the start step.
+		if(g_cameraToolsConnector.cameraToolsConnected() && nullptr!=cameraData)
+		{
+			switch(g_depthOfFieldController.getState())
+			{
+				case DepthOfFieldControllerState::Off:
+					{
+						if(cameraData->cameraEnabled)
+						{
+							if(ImGui::Button("Start depth-of-field session"))
+							{
+								g_depthOfFieldController.startSession(runtime);
+							}
+						}
+						else
+						{
+							ImGui::Text("Camera disabled so no depth-of-field session can be started");
+						}
+					}
+					break;
+				case DepthOfFieldControllerState::Setup:
+					{
+						if(cameraData->cameraEnabled)
+						{
+							ImGui::AlignTextToFramePadding();
+							float maxBokehSize = g_depthOfFieldController.getMaxBokehSize();
+							bool changed = ImGui::DragFloat("Max. bokeh size", &maxBokehSize, 0.001f, 0.001f, 10.0f, "%.3f");
+							if(changed)
+							{
+								g_depthOfFieldController.setMaxBokehSize(runtime, maxBokehSize);
+							}
+
+							float focusDelta = g_depthOfFieldController.getFocusDelta();
+							changed = ImGui::DragFloat("Focus delta", &focusDelta, 0.001f, -1.0f, 1.0f, "%.3f");
+							if(changed)
+							{
+								g_depthOfFieldController.setFocusDelta(runtime, focusDelta);
+							}
+							if(ImGui::Button("Start render"))
+							{
+								g_depthOfFieldController.startRender(runtime);
+							}
+							ImGui::SameLine();
+							if(ImGui::Button("Cancel"))
+							{
+								g_depthOfFieldController.endSession(runtime);
+							}
+						}
+						else
+						{
+							g_depthOfFieldController.endSession(runtime);
+						}
+					}
+					break;
+				case DepthOfFieldControllerState::Rendering:
+					break;
+				case DepthOfFieldControllerState::Done:
+					break;
+				case DepthOfFieldControllerState::Cancelling:
+					ImGui::Text("Cancelling session...");
+					break;
+			}
 		}
 	}
 
@@ -460,8 +534,14 @@ void onReshadeReloadEffects(effect_runtime* runtime)
 	// This call can be made in various scenarios, but they have either one of 2 characteristics: 1) there are 0 effects or 2) there are effects but they're changing.
 	// We can safely ignore the first one, as that's the one originating from the call to destroy_effects. All the other scenarios are from update_effects which is
 	// called in on_present and will end up raising the event in multiple scenarios.
-	// to make sure we only use the state controller from the present call, this migration call is added as a work item to perform in present.
 	g_reshadeStateController.migrateContainedHandles(runtime);
+	g_depthOfFieldController.migrateReshadeState(runtime);
+}
+
+
+void onReshadeBeginEffects(effect_runtime* runtime, command_list* cmd_list, resource_view rtv, resource_view rtv_srgb)
+{
+	g_depthOfFieldController.reshadeBeginEffectsCalled(runtime);
 }
 
 
@@ -476,12 +556,14 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID)
 		}
 		reshade::register_event<reshade::addon_event::reshade_present>(onReshadePresent);
 		reshade::register_event<reshade::addon_event::reshade_overlay>(onReshadeOverlay);
+		reshade::register_event<reshade::addon_event::reshade_begin_effects>(onReshadeBeginEffects);
 		reshade::register_event<reshade::addon_event::reshade_reloaded_effects>(onReshadeReloadEffects);
 		reshade::register_overlay(nullptr, &displaySettings);
 		break;
 	case DLL_PROCESS_DETACH:
 		reshade::unregister_event<reshade::addon_event::reshade_present>(onReshadePresent);
 		reshade::unregister_event<reshade::addon_event::reshade_overlay>(onReshadeOverlay);
+		reshade::unregister_event<reshade::addon_event::reshade_begin_effects>(onReshadeBeginEffects);
 		reshade::unregister_event<reshade::addon_event::reshade_reloaded_effects>(onReshadeReloadEffects);
 		reshade::unregister_overlay(nullptr, &displaySettings);
 		reshade::unregister_addon(hModule);

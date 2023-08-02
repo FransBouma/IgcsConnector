@@ -41,10 +41,21 @@ enum class ScreenshotControllerState : int
 };
 
 
+enum class DepthOfFieldControllerState : int
+{
+	Off,			// off state, user clicks the button 'Begin session'
+	Start,			// start state for the shader, it'll copy the backbuffer, the original setup shot, to a cache texture
+	Setup,			// user defines value 'A' (relationship between step size and pixels) and 'B' (step size)
+	Rendering,		// user is done setting things up and the shot is rendered
+	Done,			// Rendering has been completed, user can click 'Done' to end the session (shader will NOT be switched off so result will stay)
+	Cancelling,		// user cancels the session and things go back to off
+};
+
+
 enum class ScreenshotType : int
 {
 	HorizontalPanorama = 0,
-	Lightfield = 1,
+	MultiShot = 1,
 	DebugGrid = 2,
 };
 
