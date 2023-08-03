@@ -128,8 +128,11 @@ void DepthOfFieldController::startSession(reshade::api::effect_runtime* runtime)
 		return;
 	}
 
-	_reshadeStateAtStart.obtainReshadeState(runtime);
-	
+	{
+		std::scoped_lock lock(_reshadeStateMutex);
+		_reshadeStateAtStart.obtainReshadeState(runtime);
+	}
+
 	// set uniform variable 'SessionState' to 1 (start)
 	_state = DepthOfFieldControllerState::Start;
 	setUniformIntVariable(runtime, "SessionState", (int)_state);
@@ -211,9 +214,12 @@ void DepthOfFieldController::migrateReshadeState(reshade::api::effect_runtime* r
 		return;
 	}
 
+	std::scoped_lock lock(_reshadeStateMutex);
 	ReshadeStateSnapshot newState;
 	newState.obtainReshadeState(runtime);
-	_reshadeStateAtStart.migrateState(newState);
+	// we don't care about the variable values, only about id's and variable names. So we can replace what we have with the new state.
+	// If the new state is empty, that's fine, setting variables takes care of that. 
+	_reshadeStateAtStart = newState;
 
 	// if the newstate is empty we do nothing. If the new state isn't empty we had a migration and the variables are valid.
 	if(!newState.isEmpty() && _state == DepthOfFieldControllerState::Setup)
@@ -227,11 +233,13 @@ void DepthOfFieldController::migrateReshadeState(reshade::api::effect_runtime* r
 
 void DepthOfFieldController::setUniformIntVariable(reshade::api::effect_runtime* runtime, const std::string& uniformName, int valueToWrite)
 {
+	std::scoped_lock lock(_reshadeStateMutex);
 	_reshadeStateAtStart.setUniformIntVariable(runtime, "IgcsDof.fx", uniformName, valueToWrite);
 }
 
 
 void DepthOfFieldController::setUniformFloatVariable(reshade::api::effect_runtime* runtime, const std::string& uniformName, float valueToWrite)
 {
+	std::scoped_lock lock(_reshadeStateMutex);
 	_reshadeStateAtStart.setUniformFloatVariable(runtime, "IgcsDof.fx", uniformName, valueToWrite);
 }

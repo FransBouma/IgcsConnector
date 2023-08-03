@@ -33,6 +33,7 @@
 
 #pragma once
 #include <functional>
+#include <mutex>
 
 #include "CameraToolsConnector.h"
 #include "ConstantsEnums.h"
@@ -94,5 +95,7 @@ private:
 	int _onPresentWorkCounter = 0;					// if 0, reshadeBeginEffectsCalled will call onPresentWorkFunc (if set), otherwise this counter is decreased.
 
 	ReshadeStateSnapshot _reshadeStateAtStart;
+	std::mutex _reshadeStateMutex;
+
 };
 
