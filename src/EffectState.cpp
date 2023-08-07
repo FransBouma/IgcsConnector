@@ -172,3 +172,25 @@ void EffectState::setUniformFloatVariable(reshade::api::effect_runtime* runtime,
 	const uint64_t uniformId = _uniformVariableIdPerName[uniformName];
 	runtime->set_uniform_value_float(reshade::api::effect_uniform_variable(uniformId), valueToWrite);
 }
+
+
+void EffectState::setUniformFloat2Variable(reshade::api::effect_runtime* runtime, const std::string& uniformName, float value1ToWrite, float value2ToWrite)
+{
+	if(!_uniformVariableIdPerName.contains(uniformName))
+	{
+		return;
+	}
+	const uint64_t uniformId = _uniformVariableIdPerName[uniformName];
+	runtime->set_uniform_value_float(reshade::api::effect_uniform_variable(uniformId), value1ToWrite, value2ToWrite);
+}
+
+
+void EffectState::setUniformBoolVariable(reshade::api::effect_runtime* runtime, const std::string& uniformName, bool valueToWrite)
+{
+	if(!_uniformVariableIdPerName.contains(uniformName))
+	{
+		return;
+	}
+	const uint64_t uniformId = _uniformVariableIdPerName[uniformName];
+	runtime->set_uniform_value_bool(reshade::api::effect_uniform_variable(uniformId), valueToWrite);
+}

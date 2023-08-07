@@ -52,6 +52,16 @@ enum class DepthOfFieldControllerState : int
 };
 
 
+enum class DepthOfFieldRenderFrameState : int
+{
+	Off,			// no work
+	FrameSetup,		// Move camera
+	FrameWait,		// Wait after moving camera
+	FrameBlend,		// Wait 1 frame after giving the signal to blend.
+	FrameDone,		// check if we're done with the render, if not, go to setup, if we do, move general state to done.
+};
+
+
 enum class ScreenshotType : int
 {
 	HorizontalPanorama = 0,

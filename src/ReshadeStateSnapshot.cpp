@@ -79,6 +79,28 @@ void ReshadeStateSnapshot::setUniformFloatVariable(reshade::api::effect_runtime*
 }
 
 
+void ReshadeStateSnapshot::setUniformFloat2Variable(reshade::api::effect_runtime* runtime, const std::string& effectName, const std::string& uniformName, float value1ToWrite, float value2ToWrite)
+{
+	if(isEmpty() || !_effectStatePerEffectName.contains(effectName))
+	{
+		return;
+	}
+	auto& effectState = _effectStatePerEffectName[effectName];
+	effectState.setUniformFloat2Variable(runtime, uniformName, value1ToWrite, value2ToWrite);
+}
+
+
+void ReshadeStateSnapshot::setUniformBoolVariable(reshade::api::effect_runtime* runtime, const std::string& effectName, const std::string& uniformName, bool valueToWrite)
+{
+	if(isEmpty() || !_effectStatePerEffectName.contains(effectName))
+	{
+		return;
+	}
+	auto& effectState = _effectStatePerEffectName[effectName];
+	effectState.setUniformBoolVariable(runtime, uniformName, valueToWrite);
+}
+
+
 void ReshadeStateSnapshot::addEffectState(EffectState toAdd)
 {
 	_effectStatePerEffectName.emplace(toAdd.name(), toAdd);

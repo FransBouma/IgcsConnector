@@ -43,6 +43,18 @@
 
 class DepthOfFieldController
 {
+	/// <summary>
+	/// A location definition for the camera to step to. It contains the step info as well as the alignment information for the shader.
+	/// </summary>
+	struct CameraLocation
+	{
+		float xDelta = 0.0f;
+		float yDelta = 0.0f;
+		float xAlignmentDelta = 0.0f;
+		float yAlignmentDelta = 0.0f;
+	};
+
+
 public:
 	DepthOfFieldController(CameraToolsConnector& connector);
 	~DepthOfFieldController() = default;
@@ -76,23 +88,47 @@ public:
 	void startRender(reshade::api::effect_runtime* runtime);
 	void migrateReshadeState(reshade::api::effect_runtime* runtime);
 
+	void setUseWeight(bool newValue) { _useWeight = newValue; }
+	void setNumberOfFramesToWaitPerFrame(int newValue) { _numberOfFramesToWaitPerFrame = newValue; }
+	void setQuality(int newValue) { _quality = newValue; }
 	float getMaxBokehSize() { return _maxBokehSize; }
 	float getFocusDelta() { return _focusDelta; }
+	int getQuality() { return _quality; }
+	bool getUseWeight() { return _useWeight; }
+	int getNumberOfFramesToWaitPerFrame() { return _numberOfFramesToWaitPerFrame; }
 
 private:
 	void setUniformIntVariable(reshade::api::effect_runtime* runtime, const std::string& uniformName, int valueToWrite);
 	void setUniformFloatVariable(reshade::api::effect_runtime* runtime, const std::string& uniformName, float valueToWrite);
+	void setUniformBoolVariable(reshade::api::effect_runtime* runtime, const std::string& uniformName, bool valueToWrite);
+	void setUniformFloat2Variable(reshade::api::effect_runtime* runtime, const std::string& uniformName, float value1ToWrite, float value2ToWrite);
+
 	void displayScreenshotSessionStartError(const ScreenshotSessionStartReturnCode sessionStartResult);
 	void writeVariableStateToShader(reshade::api::effect_runtime* runtime);
+	void handleRenderStateFrame();
 
 	CameraToolsConnector& _cameraToolsConnector;
 	DepthOfFieldControllerState _state;
+	std::vector<CameraLocation> _cameraSteps;
 
 	std::function<void(reshade::api::effect_runtime*)>  _onPresentWorkFunc = nullptr;			// if set, this function is called when the onPresentWork counter reaches 0.
 
 	float _maxBokehSize = 0.25;		// value 'B', so the max diameter of a circle we're going to walk. In world units of the engine
 	float _focusDelta = 0.0f;		// value 'A', the relationship between stepping over maxBokehSize and the movement of the pixels that have to be in focus.
+	bool _blendFrame = false;		// if true, the shader will blend the curreent frame if state is Render
+	float _blendFactor = 0.0f;		// for the shader, the blend factor to use when blending a frame
+	float _xAlignmentDelta = 0.0f;	// for the shader, the alignment x delta to use
+	float _yAlignmentDelta = 0.0f;	// for the shader, the alignment y delta to use
 	int _onPresentWorkCounter = 0;					// if 0, reshadeBeginEffectsCalled will call onPresentWorkFunc (if set), otherwise this counter is decreased.
+
+	DepthOfFieldRenderFrameState _renderFrameState = DepthOfFieldRenderFrameState::Off;
+	int _frameWaitCounter = 0;		// When 0 move the render state to the next state, otherwise decrease
+	int _currentFrame = -1;		// < 0: no frame, >= 0 the current frame, 0 based. 
+
+	int _numberOfFramesToRender = 0;
+	int _numberOfFramesToWaitPerFrame = 1;
+	int _quality;		// # of circles
+	bool _useWeight = false;
 
 	ReshadeStateSnapshot _reshadeStateAtStart;
 	std::mutex _reshadeStateMutex;

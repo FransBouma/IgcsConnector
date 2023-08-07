@@ -446,6 +446,24 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 							{
 								g_depthOfFieldController.setFocusDelta(runtime, focusDelta);
 							}
+							int quality = g_depthOfFieldController.getQuality();
+							changed = ImGui::DragInt("Quality", &quality, 1, 1, 100);
+							if(changed)
+							{
+								g_depthOfFieldController.setQuality(quality);
+							}
+							bool useWeight = g_depthOfFieldController.getUseWeight();
+							changed = ImGui::Checkbox("Use weights", &useWeight);
+							if(changed)
+							{
+								g_depthOfFieldController.setUseWeight(useWeight);
+							}
+							int numberOfFramesToWaitPerFrame = g_depthOfFieldController.getNumberOfFramesToWaitPerFrame();
+							changed = ImGui::DragInt("Number of frames to wait per frame", &numberOfFramesToWaitPerFrame, 1, 1, 20);
+							if(changed)
+							{
+								g_depthOfFieldController.setNumberOfFramesToWaitPerFrame(numberOfFramesToWaitPerFrame);
+							}
 							if(ImGui::Button("Start render"))
 							{
 								g_depthOfFieldController.startRender(runtime);
@@ -463,8 +481,14 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 					}
 					break;
 				case DepthOfFieldControllerState::Rendering:
+					ImGui::Text("Rendering...");
 					break;
 				case DepthOfFieldControllerState::Done:
+					ImGui::Text("Done");
+					if(ImGui::Button("End session"))
+					{
+						g_depthOfFieldController.endSession(runtime);
+					}
 					break;
 				case DepthOfFieldControllerState::Cancelling:
 					ImGui::Text("Cancelling session...");
