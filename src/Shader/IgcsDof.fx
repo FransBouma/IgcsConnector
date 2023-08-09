@@ -44,19 +44,21 @@ namespace IgcsDOF
 	// ------------------------------
 	// Hidden values, set by the connector
 	// ------------------------------
-	uniform float FocusDelta <
+	
+	uniform float SetupAlpha <
+		ui_label = "Setup alpha";
+		ui_type = "drag";
+		ui_min = 0.0; ui_max = 1.0;
+		ui_step = 0.001;
+	> = 0.5;
+
+	
+	uniform float2 FocusDelta <
 		ui_label = "Focus delta";
 		ui_type = "drag";
 		ui_min = -1.0; ui_max = 1.0;
 		ui_step = 0.001;
-	> = 0.0;
-
-	uniform float MaxBokehSize <
-		ui_label = "Max bokeh size";
-		ui_type = "drag";
-		ui_min = 0.001; ui_max = 10.0;
-		ui_step = 0.01;
-	> = 0.001;
+	> = float2(0.0, 0.0);
 
 	uniform int SessionState < 
 		ui_type = "combo";
@@ -126,9 +128,9 @@ namespace IgcsDOF
 	{
 		if(SessionState==2)
 		{
-			float4 currentFragment = tex2Dlod(ReShade::BackBuffer, float4(texcoord.x-FocusDelta, texcoord.y, 0, 0));
+			float4 currentFragment = tex2Dlod(ReShade::BackBuffer, float4(texcoord.x - FocusDelta.x, texcoord.y + FocusDelta.y, 0, 0));
 			float4 cachedFragment = tex2Dlod(SamplerOriginalFBCache, float4(texcoord, 0, 0));
-			fragment = lerp(cachedFragment, currentFragment, 0.5);
+			fragment = lerp(cachedFragment, currentFragment, SetupAlpha);
 		}
 		else
 		{
@@ -145,7 +147,7 @@ namespace IgcsDOF
 			{
 				float4 currentFragment = tex2Dlod(ReShade::BackBuffer, float4(texcoord+AlignmentDelta, 0, 1.0f));
 				float4 tempResultFragment = tex2Dlod(SamplerBlendTempResult1, float4(texcoord, 0, 1.0f));
-				fragment = lerp(tempResultFragment, currentFragment, BlendFactor);
+				fragment = lerp(tempResultFragment, currentFragment, BlendFactor); 
 			}
 			else
 			{
@@ -172,11 +174,11 @@ namespace IgcsDOF
 	}
 
 
-	void PS_CopyTempResult2ToOutput(float4 vpos : SV_Position, float2 texcoord : TEXCOORD, out float4 fragment : SV_Target0)
+	void PS_CopyTempResult1ToFramebuffer(float4 vpos : SV_Position, float2 texcoord : TEXCOORD, out float4 fragment : SV_Target0)
 	{
-		if(SessionState==3)
+		if(SessionState==3 || SessionState==4)
 		{
-			fragment = tex2Dlod(SamplerBlendTempResult2, float4(texcoord, 0, 1.0f));
+			fragment = tex2Dlod(SamplerBlendTempResult1, float4(texcoord, 0, 1.0f));
 		}
 		else
 		{
@@ -214,17 +216,10 @@ namespace IgcsDOF
 			// If state isn't 'Render': discards the pixel
 			VertexShader = PostProcessVS; PixelShader = PS_CopyTempResult2ToTempResult1; RenderTarget = texBlendTempResult1;
 		}
-		pass CopyTempResult2ToFramebuffer {
-			// If state is 'Render': copies texBlendTempResult1 to framebuffer
+		pass CopyTempResult1ToFramebuffer {
+			// If state is 'Render' or 'Done': copies texBlendTempResult1 to framebuffer
 			// If state isn't 'Render': copies the current framebuffer to the framebuffer
-			VertexShader = PostProcessVS; PixelShader = PS_CopyTempResult2ToOutput; 
+			VertexShader = PostProcessVS; PixelShader = PS_CopyTempResult1ToFramebuffer; 
 		}
-		/*
-		pass HandleStateDonePass {
-			// If state is 'Done': copies textBlendTempResult1 to output
-			// If state isn't 'Done: it'll copy the original framebuffer to the output
-			VertexShader = PostProcessVS; PixelShader = PS_HandleStateDone; 
-		}
-		*/
 	}
 }

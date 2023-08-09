@@ -440,11 +440,13 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 								g_depthOfFieldController.setMaxBokehSize(runtime, maxBokehSize);
 							}
 
-							float focusDelta = g_depthOfFieldController.getFocusDelta();
-							changed = ImGui::DragFloat("Focus delta", &focusDelta, 0.001f, -1.0f, 1.0f, "%.3f");
+							float xFocusDelta = g_depthOfFieldController.getXFocusDelta();
+							float yFocusDelta = g_depthOfFieldController.getYFocusDelta();
+							float focusDeltas[2] = { xFocusDelta, yFocusDelta };
+							changed = ImGui::DragFloat2("Focus deltas X, Y", focusDeltas, 0.001f, -1.0f, 1.0f, "%.3f");
 							if(changed)
 							{
-								g_depthOfFieldController.setFocusDelta(runtime, focusDelta);
+								g_depthOfFieldController.setXYFocusDelta(runtime, focusDeltas[0], focusDeltas[1]);
 							}
 							int quality = g_depthOfFieldController.getQuality();
 							changed = ImGui::DragInt("Quality", &quality, 1, 1, 100);
@@ -452,18 +454,38 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 							{
 								g_depthOfFieldController.setQuality(quality);
 							}
-							bool useWeight = g_depthOfFieldController.getUseWeight();
-							changed = ImGui::Checkbox("Use weights", &useWeight);
-							if(changed)
-							{
-								g_depthOfFieldController.setUseWeight(useWeight);
-							}
 							int numberOfFramesToWaitPerFrame = g_depthOfFieldController.getNumberOfFramesToWaitPerFrame();
 							changed = ImGui::DragInt("Number of frames to wait per frame", &numberOfFramesToWaitPerFrame, 1, 1, 20);
 							if(changed)
 							{
 								g_depthOfFieldController.setNumberOfFramesToWaitPerFrame(numberOfFramesToWaitPerFrame);
 							}
+
+							float debugVal1 = g_depthOfFieldController.getDebugVal1();
+							changed = ImGui::DragFloat("Debug val1", &debugVal1, 0.001f, -2.0f, 2.0f, "%.3f");
+							if(changed)
+							{
+								g_depthOfFieldController.setDebugVal1(debugVal1);
+							}
+							float debugVal2 = g_depthOfFieldController.getDebugVal2();
+							changed = ImGui::DragFloat("Debug val2", &debugVal2, 0.001f, -20.0f, 20.0f, "%.3f");
+							if(changed)
+							{
+								g_depthOfFieldController.setDebugVal2(debugVal2);
+							}
+							bool debugBool1 = g_depthOfFieldController.getDebugBool1();
+							changed = ImGui::Checkbox("Debug bool 1", &debugBool1);
+							if(changed)
+							{
+								g_depthOfFieldController.setDebugBool1(debugBool1);
+							}
+							bool debugBool2 = g_depthOfFieldController.getDebugBool2();
+							changed = ImGui::Checkbox("Debug bool 2", &debugBool2);
+							if(changed)
+							{
+								g_depthOfFieldController.setDebugBool2(debugBool2);
+							}
+
 							if(ImGui::Button("Start render"))
 							{
 								g_depthOfFieldController.startRender(runtime);
@@ -473,6 +495,17 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 							{
 								g_depthOfFieldController.endSession(runtime);
 							}
+							// show the shape canvas
+							//g_depthOfFieldController.createLinearDoFPoints();
+							g_depthOfFieldController.createCircleDoFPoints();
+							ImGui::Text("Shape:");
+							ImGui::InvisibleButton("canvas", ImVec2(250.0f, 250.0f), ImGuiButtonFlags_None);
+							ImVec2 topLeftCoords = ImGui::GetItemRectMin();
+							ImVec2 bottomRightCoords = ImGui::GetItemRectMax();
+							ImDrawList* drawList = ImGui::GetWindowDrawList();
+							drawList->AddRectFilled(topLeftCoords, bottomRightCoords, IM_COL32(50, 50, 50, 255));
+							drawList->AddRect(topLeftCoords, bottomRightCoords, IM_COL32(255, 255, 255, 255));
+							g_depthOfFieldController.drawShape(drawList, topLeftCoords, 250.0f);
 						}
 						else
 						{

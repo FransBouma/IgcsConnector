@@ -33,6 +33,7 @@
 
 #pragma once
 #include <functional>
+#include <imgui.h>
 #include <mutex>
 
 #include "CameraToolsConnector.h"
@@ -71,7 +72,7 @@ public:
 	///	This value is used to realign the image when the camera steps a factor of MaxBokehSize.
 	/// </summary>
 	/// <param name="newValue"></param>
-	void setFocusDelta(reshade::api::effect_runtime* runtime, float newValue);
+	void setXYFocusDelta(reshade::api::effect_runtime* runtime, float newValueX, float newValueY);
 	/// <summary>
 	/// Starts a new session. 
 	/// </summary>
@@ -87,15 +88,26 @@ public:
 	void reshadeBeginEffectsCalled(reshade::api::effect_runtime* runtime);
 	void startRender(reshade::api::effect_runtime* runtime);
 	void migrateReshadeState(reshade::api::effect_runtime* runtime);
+	void createLinearDoFPoints();
+	void createCircleDoFPoints();
 
-	void setUseWeight(bool newValue) { _useWeight = newValue; }
 	void setNumberOfFramesToWaitPerFrame(int newValue) { _numberOfFramesToWaitPerFrame = newValue; }
 	void setQuality(int newValue) { _quality = newValue; }
 	float getMaxBokehSize() { return _maxBokehSize; }
-	float getFocusDelta() { return _focusDelta; }
+	float getXFocusDelta() { return _xFocusDelta; }
+	float getYFocusDelta() { return _yFocusDelta; }
 	int getQuality() { return _quality; }
-	bool getUseWeight() { return _useWeight; }
 	int getNumberOfFramesToWaitPerFrame() { return _numberOfFramesToWaitPerFrame; }
+	void drawShape(ImDrawList* drawList, ImVec2 topLeftScreenCoord, float canvasWidthHeight);
+
+	void setDebugBool1(bool newVal) { _debugBool1 = newVal; }
+	void setDebugBool2(bool newVal) { _debugBool2 = newVal; }
+	void setDebugVal1(float newVal) { _debugVal1 = newVal; }
+	void setDebugVal2(float newVal) { _debugVal2 = newVal; }
+	bool getDebugBool1() { return _debugBool1; }
+	bool getDebugBool2() { return _debugBool2; }
+	float getDebugVal1() { return _debugVal1; }
+	float getDebugVal2() { return _debugVal2; }
 
 private:
 	void setUniformIntVariable(reshade::api::effect_runtime* runtime, const std::string& uniformName, int valueToWrite);
@@ -114,7 +126,8 @@ private:
 	std::function<void(reshade::api::effect_runtime*)>  _onPresentWorkFunc = nullptr;			// if set, this function is called when the onPresentWork counter reaches 0.
 
 	float _maxBokehSize = 0.25;		// value 'B', so the max diameter of a circle we're going to walk. In world units of the engine
-	float _focusDelta = 0.0f;		// value 'A', the relationship between stepping over maxBokehSize and the movement of the pixels that have to be in focus.
+	float _xFocusDelta = 0.0f;		// value 'A', the relationship between stepping over maxBokehSize and the movement of the pixels that have to be in focus. X specific
+	float _yFocusDelta = 0.0f;		// value 'A', the relationship between stepping over maxBokehSize and the movement of the pixels that have to be in focus. X specific
 	bool _blendFrame = false;		// if true, the shader will blend the curreent frame if state is Render
 	float _blendFactor = 0.0f;		// for the shader, the blend factor to use when blending a frame
 	float _xAlignmentDelta = 0.0f;	// for the shader, the alignment x delta to use
@@ -128,7 +141,11 @@ private:
 	int _numberOfFramesToRender = 0;
 	int _numberOfFramesToWaitPerFrame = 1;
 	int _quality;		// # of circles
-	bool _useWeight = false;
+
+	float _debugVal1 = 0.0f;
+	float _debugVal2 = 0.0f;
+	bool _debugBool1 = false;
+	bool _debugBool2 = false;
 
 	ReshadeStateSnapshot _reshadeStateAtStart;
 	std::mutex _reshadeStateMutex;
