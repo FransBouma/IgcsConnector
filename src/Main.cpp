@@ -454,6 +454,12 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 							{
 								g_depthOfFieldController.setQuality(quality);
 							}
+							int numberOfPointsInnermostCircle = g_depthOfFieldController.getNumberOfPointsInnermostRing();
+							changed = ImGui::DragInt("Number of points of innermost circle", &numberOfPointsInnermostCircle, 1, 1, 100);
+							if(changed)
+							{
+								g_depthOfFieldController.setNumberOfPointsInnermostRing(numberOfPointsInnermostCircle);
+							}
 							int numberOfFramesToWaitPerFrame = g_depthOfFieldController.getNumberOfFramesToWaitPerFrame();
 							changed = ImGui::DragInt("Number of frames to wait per frame", &numberOfFramesToWaitPerFrame, 1, 1, 20);
 							if(changed)

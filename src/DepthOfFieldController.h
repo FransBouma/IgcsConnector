@@ -93,10 +93,12 @@ public:
 
 	void setNumberOfFramesToWaitPerFrame(int newValue) { _numberOfFramesToWaitPerFrame = newValue; }
 	void setQuality(int newValue) { _quality = newValue; }
+	void setNumberOfPointsInnermostRing(int newValue) { _numberOfPointsInnermostRing = newValue; }
 	float getMaxBokehSize() { return _maxBokehSize; }
 	float getXFocusDelta() { return _xFocusDelta; }
 	float getYFocusDelta() { return _yFocusDelta; }
 	int getQuality() { return _quality; }
+	int getNumberOfPointsInnermostRing() { return _numberOfPointsInnermostRing; }
 	int getNumberOfFramesToWaitPerFrame() { return _numberOfFramesToWaitPerFrame; }
 	void drawShape(ImDrawList* drawList, ImVec2 topLeftScreenCoord, float canvasWidthHeight);
 
@@ -141,6 +143,7 @@ private:
 	int _numberOfFramesToRender = 0;
 	int _numberOfFramesToWaitPerFrame = 1;
 	int _quality;		// # of circles
+	int _numberOfPointsInnermostRing;
 
 	float _debugVal1 = 0.0f;
 	float _debugVal2 = 0.0f;

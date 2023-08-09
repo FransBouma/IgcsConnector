@@ -37,7 +37,7 @@
 #include "OverlayControl.h"
 #include "Utils.h"
 
-DepthOfFieldController::DepthOfFieldController(CameraToolsConnector& connector): _cameraToolsConnector(connector), _state(DepthOfFieldControllerState::Off), _quality(1)
+DepthOfFieldController::DepthOfFieldController(CameraToolsConnector& connector) : _cameraToolsConnector(connector), _state(DepthOfFieldControllerState::Off), _quality(1), _numberOfPointsInnermostRing(5)
 {
 }
 
@@ -291,7 +291,7 @@ void DepthOfFieldController::createLinearDoFPoints()
 void DepthOfFieldController::createCircleDoFPoints()
 {
 	_cameraSteps.clear();
-	float pointsFirstRing = _debugVal2;
+	float pointsFirstRing = (float)_numberOfPointsInnermostRing;
 	float pointsOnRing = pointsFirstRing;
 	float maxBokehRadius = _maxBokehSize / 2.0f;
 	for(int ringNo = 1; ringNo <= _quality; ringNo++)
