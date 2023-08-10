@@ -32,6 +32,13 @@
 /////////////////////////////////////////////////////////////////////////
 #pragma once
 
+enum class DepthOfFieldBlurType : int
+{
+	Linear,			// for motion blur
+	Circular,		// for bokeh
+};
+
+
 enum class ScreenshotControllerState : int
 {
 	Off,

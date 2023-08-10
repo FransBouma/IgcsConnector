@@ -287,8 +287,9 @@ static void onReshadeOverlay(effect_runtime* runtime)
 	// first let the screenshot controller grab screenshots
 	g_screenshotController.reshadeEffectsRendered(runtime);
 
-	// then we'll render our own overlay if needed
+	// then we'll render our own overlays if needed
 	OverlayControl::renderOverlay();
+	g_depthOfFieldController.renderOverlay();		// if it has something to display it can do that here
 }
 
 
@@ -331,7 +332,7 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 {
 	ImGui::AlignTextToFramePadding();
 	const auto cameraData = (CameraToolsData*)g_dataFromCameraToolsBuffer;
-	if(ImGui::CollapsingHeader("Screenshot features", ImGuiTreeNodeFlags_DefaultOpen))
+	if(ImGui::CollapsingHeader("Screenshot features"))
 	{
 		if(g_cameraToolsConnector.cameraToolsConnected() && nullptr != cameraData)
 		{
@@ -432,22 +433,48 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 					{
 						if(cameraData->cameraEnabled)
 						{
+							ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.35f);
 							ImGui::AlignTextToFramePadding();
+
+							ImGui::SeparatorText("Focusing");
 							float maxBokehSize = g_depthOfFieldController.getMaxBokehSize();
 							bool changed = ImGui::DragFloat("Max. bokeh size", &maxBokehSize, 0.001f, 0.001f, 10.0f, "%.3f");
+							if(ImGui::IsItemHovered(ImGuiHoveredFlags_Stationary))
+							{
+								ImGui::SetTooltip("Use this value to define the maximum bokeh size.");
+							}
 							if(changed)
 							{
 								g_depthOfFieldController.setMaxBokehSize(runtime, maxBokehSize);
 							}
 
-							float xFocusDelta = g_depthOfFieldController.getXFocusDelta();
-							float yFocusDelta = g_depthOfFieldController.getYFocusDelta();
-							float focusDeltas[2] = { xFocusDelta, yFocusDelta };
+							float focusDeltas[2] = { (g_depthOfFieldController.getXFocusDelta()), (g_depthOfFieldController.getYFocusDelta()) };
 							changed = ImGui::DragFloat2("Focus deltas X, Y", focusDeltas, 0.001f, -1.0f, 1.0f, "%.3f");
+							if(ImGui::IsItemHovered(ImGuiHoveredFlags_Stationary))
+							{
+								ImGui::SetTooltip("Use these two values to align the two images on the spot you want to have in focus");
+							}
 							if(changed)
 							{
 								g_depthOfFieldController.setXYFocusDelta(runtime, focusDeltas[0], focusDeltas[1]);
 							}
+							int numberOfFramesToWaitPerFrame = g_depthOfFieldController.getNumberOfFramesToWaitPerFrame();
+							changed = ImGui::DragInt("Number of frames to wait per frame", &numberOfFramesToWaitPerFrame, 1, 1, 20);
+							if(changed)
+							{
+								g_depthOfFieldController.setNumberOfFramesToWaitPerFrame(numberOfFramesToWaitPerFrame);
+							}
+
+							ImGui::SeparatorText("Bokeh setup");
+							int blurType = (int)g_depthOfFieldController.getBlurType();
+#if _DEBUG
+							// In debug build we can also pick linear
+							changed = ImGui::Combo("Blur type", &blurType, "Linear\0Circular\0\0");
+							if(changed)
+							{
+								g_depthOfFieldController.setBlurType((DepthOfFieldBlurType)blurType);
+							}
+#endif
 							int quality = g_depthOfFieldController.getQuality();
 							changed = ImGui::DragInt("Quality", &quality, 1, 1, 100);
 							if(changed)
@@ -460,38 +487,28 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 							{
 								g_depthOfFieldController.setNumberOfPointsInnermostRing(numberOfPointsInnermostCircle);
 							}
-							int numberOfFramesToWaitPerFrame = g_depthOfFieldController.getNumberOfFramesToWaitPerFrame();
-							changed = ImGui::DragInt("Number of frames to wait per frame", &numberOfFramesToWaitPerFrame, 1, 1, 20);
-							if(changed)
+
+							switch(blurType)
 							{
-								g_depthOfFieldController.setNumberOfFramesToWaitPerFrame(numberOfFramesToWaitPerFrame);
+								case (int)DepthOfFieldBlurType::Linear:
+									g_depthOfFieldController.createLinearDoFPoints();
+									break;
+								case (int)DepthOfFieldBlurType::Circular:
+									g_depthOfFieldController.createCircleDoFPoints();
+									break;
 							}
 
-							float debugVal1 = g_depthOfFieldController.getDebugVal1();
-							changed = ImGui::DragFloat("Debug val1", &debugVal1, 0.001f, -2.0f, 2.0f, "%.3f");
-							if(changed)
-							{
-								g_depthOfFieldController.setDebugVal1(debugVal1);
-							}
-							float debugVal2 = g_depthOfFieldController.getDebugVal2();
-							changed = ImGui::DragFloat("Debug val2", &debugVal2, 0.001f, -20.0f, 20.0f, "%.3f");
-							if(changed)
-							{
-								g_depthOfFieldController.setDebugVal2(debugVal2);
-							}
-							bool debugBool1 = g_depthOfFieldController.getDebugBool1();
-							changed = ImGui::Checkbox("Debug bool 1", &debugBool1);
-							if(changed)
-							{
-								g_depthOfFieldController.setDebugBool1(debugBool1);
-							}
-							bool debugBool2 = g_depthOfFieldController.getDebugBool2();
-							changed = ImGui::Checkbox("Debug bool 2", &debugBool2);
-							if(changed)
-							{
-								g_depthOfFieldController.setDebugBool2(debugBool2);
-							}
+							// show the shape canvas
+							ImGui::Text("Blur shape. Number of shots to take: %d", g_depthOfFieldController.getTotalNumberOfStepsToTake());
+							ImGui::InvisibleButton("canvas", ImVec2(250.0f, 250.0f), ImGuiButtonFlags_None);
+							const ImVec2 topLeftCoords = ImGui::GetItemRectMin();
+							const ImVec2 bottomRightCoords = ImGui::GetItemRectMax();
+							ImDrawList* drawList = ImGui::GetWindowDrawList();
+							drawList->AddRectFilled(topLeftCoords, bottomRightCoords, IM_COL32(50, 50, 50, 255));
+							drawList->AddRect(topLeftCoords, bottomRightCoords, IM_COL32(255, 255, 255, 255));
+							g_depthOfFieldController.drawShape(drawList, topLeftCoords, 250.0f);
 
+							ImGui::Separator();
 							if(ImGui::Button("Start render"))
 							{
 								g_depthOfFieldController.startRender(runtime);
@@ -501,17 +518,35 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 							{
 								g_depthOfFieldController.endSession(runtime);
 							}
-							// show the shape canvas
-							//g_depthOfFieldController.createLinearDoFPoints();
-							g_depthOfFieldController.createCircleDoFPoints();
-							ImGui::Text("Shape:");
-							ImGui::InvisibleButton("canvas", ImVec2(250.0f, 250.0f), ImGuiButtonFlags_None);
-							ImVec2 topLeftCoords = ImGui::GetItemRectMin();
-							ImVec2 bottomRightCoords = ImGui::GetItemRectMax();
-							ImDrawList* drawList = ImGui::GetWindowDrawList();
-							drawList->AddRectFilled(topLeftCoords, bottomRightCoords, IM_COL32(50, 50, 50, 255));
-							drawList->AddRect(topLeftCoords, bottomRightCoords, IM_COL32(255, 255, 255, 255));
-							g_depthOfFieldController.drawShape(drawList, topLeftCoords, 250.0f);
+
+							if(ImGui::CollapsingHeader("Debug"))
+							{
+								float debugVal1 = g_depthOfFieldController.getDebugVal1();
+								changed = ImGui::DragFloat("Debug val1", &debugVal1, 0.001f, -2.0f, 2.0f, "%.3f");
+								if(changed)
+								{
+									g_depthOfFieldController.setDebugVal1(debugVal1);
+								}
+								float debugVal2 = g_depthOfFieldController.getDebugVal2();
+								changed = ImGui::DragFloat("Debug val2", &debugVal2, 0.001f, -20.0f, 20.0f, "%.3f");
+								if(changed)
+								{
+									g_depthOfFieldController.setDebugVal2(debugVal2);
+								}
+								bool debugBool1 = g_depthOfFieldController.getDebugBool1();
+								changed = ImGui::Checkbox("Debug bool 1", &debugBool1);
+								if(changed)
+								{
+									g_depthOfFieldController.setDebugBool1(debugBool1);
+								}
+								bool debugBool2 = g_depthOfFieldController.getDebugBool2();
+								changed = ImGui::Checkbox("Debug bool 2", &debugBool2);
+								if(changed)
+								{
+									g_depthOfFieldController.setDebugBool2(debugBool2);
+								}
+							}
+							ImGui::PopItemWidth();
 						}
 						else
 						{
@@ -520,10 +555,15 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 					}
 					break;
 				case DepthOfFieldControllerState::Rendering:
-					ImGui::Text("Rendering...");
+					ImGui::Text("Rendering, please wait...");
+					if(ImGui::Button("Cancel"))
+					{
+						g_depthOfFieldController.endSession(runtime);
+					}
 					break;
 				case DepthOfFieldControllerState::Done:
-					ImGui::Text("Done");
+					ImGui::Text("Done. You can now take a screenshot.\n\n");
+					ImGui::Text("Click 'End session' to end this session.\nThis will remove the rendering result.");
 					if(ImGui::Button("End session"))
 					{
 						g_depthOfFieldController.endSession(runtime);

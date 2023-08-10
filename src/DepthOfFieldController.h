@@ -90,14 +90,17 @@ public:
 	void migrateReshadeState(reshade::api::effect_runtime* runtime);
 	void createLinearDoFPoints();
 	void createCircleDoFPoints();
+	void renderOverlay();
 
 	void setNumberOfFramesToWaitPerFrame(int newValue) { _numberOfFramesToWaitPerFrame = newValue; }
 	void setQuality(int newValue) { _quality = newValue; }
 	void setNumberOfPointsInnermostRing(int newValue) { _numberOfPointsInnermostRing = newValue; }
+	void setBlurType(DepthOfFieldBlurType newValue) { _blurType = newValue; }
 	float getMaxBokehSize() { return _maxBokehSize; }
 	float getXFocusDelta() { return _xFocusDelta; }
 	float getYFocusDelta() { return _yFocusDelta; }
 	int getQuality() { return _quality; }
+	DepthOfFieldBlurType getBlurType() { return _blurType; }
 	int getNumberOfPointsInnermostRing() { return _numberOfPointsInnermostRing; }
 	int getNumberOfFramesToWaitPerFrame() { return _numberOfFramesToWaitPerFrame; }
 	void drawShape(ImDrawList* drawList, ImVec2 topLeftScreenCoord, float canvasWidthHeight);
@@ -110,6 +113,7 @@ public:
 	bool getDebugBool2() { return _debugBool2; }
 	float getDebugVal1() { return _debugVal1; }
 	float getDebugVal2() { return _debugVal2; }
+	int getTotalNumberOfStepsToTake() { return _cameraSteps.size(); }
 
 private:
 	void setUniformIntVariable(reshade::api::effect_runtime* runtime, const std::string& uniformName, int valueToWrite);
@@ -127,7 +131,7 @@ private:
 
 	std::function<void(reshade::api::effect_runtime*)>  _onPresentWorkFunc = nullptr;			// if set, this function is called when the onPresentWork counter reaches 0.
 
-	float _maxBokehSize = 0.25;		// value 'B', so the max diameter of a circle we're going to walk. In world units of the engine
+	float _maxBokehSize = 0.05;		// value 'B', so the max diameter of a circle we're going to walk. In world units of the engine
 	float _xFocusDelta = 0.0f;		// value 'A', the relationship between stepping over maxBokehSize and the movement of the pixels that have to be in focus. X specific
 	float _yFocusDelta = 0.0f;		// value 'A', the relationship between stepping over maxBokehSize and the movement of the pixels that have to be in focus. X specific
 	bool _blendFrame = false;		// if true, the shader will blend the curreent frame if state is Render
@@ -149,6 +153,7 @@ private:
 	float _debugVal2 = 0.0f;
 	bool _debugBool1 = false;
 	bool _debugBool2 = false;
+	DepthOfFieldBlurType _blurType = DepthOfFieldBlurType::Circular;
 
 	ReshadeStateSnapshot _reshadeStateAtStart;
 	std::mutex _reshadeStateMutex;

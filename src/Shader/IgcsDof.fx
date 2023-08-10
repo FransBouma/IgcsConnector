@@ -45,6 +45,31 @@ namespace IgcsDOF
 	// Hidden values, set by the connector
 	// ------------------------------
 	
+	uniform float HighlightBoost <
+		ui_category = "Highlight tweaking";
+		ui_label="Highlight boost factor";
+		ui_type = "drag";
+		ui_min = 0.00; ui_max = 1.00;
+		ui_tooltip = "Will boost/dim the highlights a small amount";
+		ui_step = 0.001;
+	> = 0.50;
+	uniform float HighlightGammaFactor <
+		ui_category = "Highlight tweaking";
+		ui_label="Highlight gamma factor";
+		ui_type = "drag";
+		ui_min = 0.001; ui_max = 5.00;
+		ui_tooltip = "Controls the gamma factor to boost/dim highlights\n2.2, the default, gives natural colors and brightness";
+		ui_step = 0.01;
+	> = 2.2;
+	uniform float HighlightSharpeningFactor <
+		ui_category = "Highlight tweaking";
+		ui_label="Highlight sharpening factor";
+		ui_type = "drag";
+		ui_min = 0.000; ui_max = 1.00;
+		ui_tooltip = "Controls the sharpness of the bokeh highlight edges.";
+		ui_step = 0.01;
+	> = 0.0;
+		
 	uniform float SetupAlpha <
 		ui_label = "Setup alpha";
 		ui_type = "drag";
@@ -101,13 +126,32 @@ namespace IgcsDOF
 	#define BUFFER_SCREEN_SIZE	ReShade::ScreenSize
 #endif
 
-	texture texOriginalFBCache 		{ Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = RGBA16F; };
-	texture texBlendTempResult1		{ Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = RGBA16F; };
-	texture texBlendTempResult2		{ Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = RGBA16F; };
-		
+	texture texCDNoise				< source = "monochrome_gaussnoise.png"; > { Width = 512; Height = 512; Format = RGBA8; };
+	texture texOriginalFBCache 		{ Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = RGBA32F; };
+	texture texBlendTempResult1		{ Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = RGBA32F; };
+	texture texBlendTempResult2		{ Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = RGBA32F; };
+	
+	sampler SamplerCDNoise			{ Texture = texCDNoise; MipFilter = POINT; MinFilter = POINT; MagFilter = POINT; AddressU = WRAP; AddressV = WRAP; AddressW = WRAP;};
 	sampler SamplerOriginalFBCache	{ Texture = texOriginalFBCache; MagFilter = POINT; MinFilter = POINT; MipFilter = POINT; AddressU = CLAMP; AddressV = CLAMP; AddressW = CLAMP; };
 	sampler SamplerBlendTempResult1	{ Texture = texBlendTempResult1; MagFilter = POINT; MinFilter = POINT; MipFilter = POINT; AddressU = CLAMP; AddressV = CLAMP; AddressW = CLAMP; };
 	sampler SamplerBlendTempResult2	{ Texture = texBlendTempResult2; MagFilter = POINT; MinFilter = POINT; MipFilter = POINT; AddressU = CLAMP; AddressV = CLAMP; AddressW = CLAMP; };
+	
+	float3 AccentuateWhites(float3 fragment)
+	{
+		// apply small tow to the incoming fragment, so the whitepoint gets slightly lower than max.
+		// De-tonemap color (reinhard). Thanks Marty :) 
+		fragment = pow(abs(fragment), HighlightGammaFactor);
+		return fragment / max((1.001 - (HighlightBoost * fragment)), 0.001);
+	}
+	
+	
+	float3 CorrectForWhiteAccentuation(float3 fragment)
+	{
+		// Re-tonemap color (reinhard). Thanks Marty :) 
+		float3 toReturn = fragment / (1.001 + (HighlightBoost * fragment));
+		return pow(abs(toReturn), 1.0/ HighlightGammaFactor);
+	}
+	
 	
 	void PS_HandleStateStart(float4 vpos : SV_Position, float2 texcoord : TEXCOORD, out float4 fragment0 : SV_Target0, out float4 fragment1 : SV_Target1)
 	{
@@ -116,6 +160,7 @@ namespace IgcsDOF
 			float4 currentFragment = float4(tex2Dlod(ReShade::BackBuffer, float4(texcoord, 0, 0)).rgb, 1.0f);
 			fragment0 = currentFragment;
 			fragment1 = currentFragment;
+			fragment1.rgb = AccentuateWhites(currentFragment.rgb);
 		}
 		else
 		{
@@ -146,6 +191,7 @@ namespace IgcsDOF
 			if(BlendFrame)
 			{
 				float4 currentFragment = tex2Dlod(ReShade::BackBuffer, float4(texcoord+AlignmentDelta, 0, 1.0f));
+				currentFragment.rgb = AccentuateWhites(currentFragment.rgb);
 				float4 tempResultFragment = tex2Dlod(SamplerBlendTempResult1, float4(texcoord, 0, 1.0f));
 				fragment = lerp(tempResultFragment, currentFragment, BlendFactor); 
 			}
@@ -179,10 +225,19 @@ namespace IgcsDOF
 		if(SessionState==3 || SessionState==4)
 		{
 			fragment = tex2Dlod(SamplerBlendTempResult1, float4(texcoord, 0, 1.0f));
+			// doing a tent filter here will also slightly blur the in-focus areas so we can't do that without calculating CoC's and asking 
+			// the user for focus points...
+			fragment.rgb = CorrectForWhiteAccentuation(fragment.rgb);
+			
+			// Dither so no mach bands will appear. From CinematicDOF, contributed by Prod80 to CinematicDOF
+			float2 uv = float2(BUFFER_WIDTH, BUFFER_HEIGHT) / float2( 512.0f, 512.0f ); // create multiplier on texcoord so that we can use 1px size reads on gaussian noise texture (since much smaller than screen)
+			uv.xy = uv.xy * texcoord.xy;
+			float noise = tex2D(SamplerCDNoise, uv).x; // read, uv is scaled, sampler is set to tile noise texture (WRAP)
+			fragment.rgb = saturate(fragment.rgb + lerp( -0.5/255.0, 0.5/255.0, noise)); // apply dither
 		}
 		else
 		{
-			fragment = tex2Dlod(ReShade::BackBuffer, float4(texcoord, 0, 1.0f));
+			fragment = tex2D(ReShade::BackBuffer, texcoord);
 		}
 	}	
 

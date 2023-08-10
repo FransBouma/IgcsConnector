@@ -37,7 +37,7 @@
 #include "OverlayControl.h"
 #include "Utils.h"
 
-DepthOfFieldController::DepthOfFieldController(CameraToolsConnector& connector) : _cameraToolsConnector(connector), _state(DepthOfFieldControllerState::Off), _quality(1), _numberOfPointsInnermostRing(5)
+DepthOfFieldController::DepthOfFieldController(CameraToolsConnector& connector) : _cameraToolsConnector(connector), _state(DepthOfFieldControllerState::Off), _quality(4), _numberOfPointsInnermostRing(3)
 {
 }
 
@@ -216,14 +216,13 @@ void DepthOfFieldController::handleRenderStateFrame()
 		case DepthOfFieldRenderFrameState::FrameSetup:
 			{
 				// move camera and set counter and move to next state
-				_blendFactor = 1.0f / (static_cast<float>(_currentFrame) + 2.0);
+				_blendFactor = 1.0f / (static_cast<float>(_currentFrame) + 2.0f);		// frame start at 0 so +1, and we have to blend the original too, so +1
 				auto& currentFrameData = _cameraSteps[_currentFrame];
 				_cameraToolsConnector.moveCameraMultishot(currentFrameData.xDelta, currentFrameData.yDelta, 0.0f, true);
 				_xAlignmentDelta = currentFrameData.xAlignmentDelta;
 				_yAlignmentDelta = currentFrameData.yAlignmentDelta;
 				_frameWaitCounter = _numberOfFramesToWaitPerFrame;
 				_renderFrameState = DepthOfFieldRenderFrameState::FrameWait;
-				reshade::log_message(reshade::log_level::info, IGCS::Utils::formatString("\t\tSetup frame for step: %d. xDelta: %.5f, yDelta: %.5f, xAlignmentDelta: %.5f, yAlignmentDelta: %.5f", _currentFrame, currentFrameData.xDelta, currentFrameData.yDelta, currentFrameData.xAlignmentDelta, currentFrameData.yAlignmentDelta).c_str());
 			}
 			break;
 		case DepthOfFieldRenderFrameState::FrameWait:
@@ -274,15 +273,16 @@ void DepthOfFieldController::handleRenderStateFrame()
 void DepthOfFieldController::createLinearDoFPoints()
 {
 	_cameraSteps.clear();
+// TODO: ADD Angle for rotation
 	bool vertical = _debugBool1;
 	for(int ringNo = 1;ringNo<=_quality;ringNo++)
 	{
 		// for testing, first a linear move like a lightfield.
 		const float stepDelta = (float)ringNo / (float)_quality;
-		float xDelta = vertical ? 0.0f :_maxBokehSize * stepDelta;
-		float yDelta = vertical ? _maxBokehSize * stepDelta : 0.0f;
-		float xAlignmentDelta = stepDelta * -_xFocusDelta;
-		float yAlignmentDelta = stepDelta * _yFocusDelta;
+		const float xDelta = vertical ? 0.0f :_maxBokehSize * stepDelta;
+		const float yDelta = vertical ? _maxBokehSize * stepDelta : 0.0f;
+		const float xAlignmentDelta = stepDelta * -_xFocusDelta;
+		const float yAlignmentDelta = stepDelta * _yFocusDelta;
 		_cameraSteps.push_back({ xDelta, yDelta, vertical ? 0.0f : xAlignmentDelta, vertical? yAlignmentDelta : 0.0f });
 	}
 }
@@ -291,20 +291,21 @@ void DepthOfFieldController::createLinearDoFPoints()
 void DepthOfFieldController::createCircleDoFPoints()
 {
 	_cameraSteps.clear();
-	float pointsFirstRing = (float)_numberOfPointsInnermostRing;
+	const float pointsFirstRing = (float)_numberOfPointsInnermostRing;
 	float pointsOnRing = pointsFirstRing;
-	float maxBokehRadius = _maxBokehSize / 2.0f;
+	const float maxBokehRadius = _maxBokehSize / 2.0f;
 	for(int ringNo = 1; ringNo <= _quality; ringNo++)
 	{
-		float anglePerPoint = 6.28318530717958f / pointsOnRing;
+		const float anglePerPoint = 6.28318530717958f / pointsOnRing;
 		float angle = anglePerPoint;
 		const float ringDistance = (float)ringNo / (float)_quality;
 		for(int pointNumber = 0;pointNumber<pointsOnRing;pointNumber++)
 		{
-			float sinAngle = sin(angle);
-			float cosAngle = cos(angle);
-			float xDelta = (maxBokehRadius * ringDistance) * cosAngle;
-			float yDelta = (maxBokehRadius * ringDistance)* sinAngle;
+			const float sinAngle = sin(angle);
+			const float cosAngle = cos(angle);
+			const float xDelta = (maxBokehRadius * ringDistance) * cosAngle;		// multiply with a value [0.01-1] to get anamorphic bokehs. Controls width
+			const float yDelta = (maxBokehRadius * ringDistance) * sinAngle;		// multiply with a value [0.01-1] to get anamorphic bokehs. Controls height
+			
 			_cameraSteps.push_back({ xDelta, yDelta, ringDistance * cosAngle * -(_xFocusDelta / 2.0f), ringDistance * sinAngle * (_yFocusDelta / 2.0f)});
 			angle += anglePerPoint;
 		}
@@ -328,90 +329,17 @@ void DepthOfFieldController::startRender(reshade::api::effect_runtime* runtime)
 	}
 
 	// calculate the positions of the camera
-	// For testing, we're first going to render only horizontally, to the left. Moving camera to the left means our focus points *in the image* moves to the right so we align the image
-	// by moving it to the left!
-		// TODO ring coords
-		// Use code from: https://www.shadertoy.com/view/ctjcRz
-		/*
-
-#define NUM_RINGS 10
-
-void mainImage( out vec4 fragColor, in vec2 fragCoord )
-{
-	vec2 uv = fragCoord/iResolution.xy;
-
-
-	uv = uv * 2.0 - 1.0;
-	uv.x *= iResolution.x / iResolution.y;
-	//uv *= 2.5;
-
-	vec2 mousemod = iMouse.xy / iResolution.xy;
-
-
-	vec3 col = vec3(0.0);
-
-	float BLUR_KERNEL_ROUNDNESS = mousemod.y;
-	int NUM_VTX = int(mix(3.,8.,mousemod.x));
-
-	int mult = max(1, 6 - NUM_VTX);
-
-	float phi = radians(360.0 / float(NUM_VTX));
-	mat2 vertexmat = mat2(cos(phi), sin(phi), -sin(phi), cos(phi));
-	vec2 thisvertex = vec2(0.0, 1.0);				// Rotate this coordinate to rotate the shape.
-
-	for(int i = 0; i < NUM_VTX; i++)
+	switch(_blurType)
 	{
-		vec2 nextvertex = thisvertex * vertexmat;
-
-		for(int j = 1; j <= NUM_RINGS; j++)
-		for(int k = 0; k < j * mult; k++)
-		{
-			float curr_radius = float(j) / float(NUM_RINGS);
-
-			float numsamples = float(j * mult);
-			float pos_on_secant = float(k) / numsamples;
-
-			//fix distribution - lerping offsets to normalized causes fucked up distribution
-			float b = tan(phi * (pos_on_secant - 0.5));
-			float x = b * (1.0 + vertexmat[0][0]) / vertexmat[0][1] * 0.5 + 0.5;
-
-			pos_on_secant = mix(pos_on_secant, x, BLUR_KERNEL_ROUNDNESS);
-
-			vec2 current_offset = mix(thisvertex, nextvertex, pos_on_secant);
-			current_offset -= current_offset * (BLUR_KERNEL_ROUNDNESS - BLUR_KERNEL_ROUNDNESS * inversesqrt(dot(current_offset, current_offset)));
-
-			current_offset *= curr_radius;
-
-			vec2 uv_delta = uv - current_offset;
-			col += smoothstep(3.0,2.0, length(uv_delta)/length(fwidth(uv_delta)));
-
-
-
-		}
-		thisvertex = nextvertex;
-
+		case DepthOfFieldBlurType::Linear: 
+			createLinearDoFPoints();
+			break;
+		case DepthOfFieldBlurType::Circular: 
+			createCircleDoFPoints();
+			break;
 	}
-
-	col += smoothstep(3.0,2.0, length(uv)/length(fwidth(uv)));
-
-	fragColor = vec4(col,1.0);
-}
-		 */
-
-
-	int pointsFirstRing = 7;			// same as with cinedof. We'll add this number to each circle
-	//createLinearDoFPoints();
-	createCircleDoFPoints();
-	// Log the camera steps created
-	reshade::log_message(reshade::log_level::info, "\tCamera steps calculated: ");
-	int stepCounter = 0;
-	for(auto& stepData : _cameraSteps)
-	{
-		reshade::log_message(reshade::log_level::info, IGCS::Utils::formatString("\t\tStep: %d. xDelta: %.3f, yDelta: %.5f, xAlignmentDelta: %.5f, yAlignmentDelta: %.5f", stepCounter, stepData.xDelta, stepData.yDelta, stepData.xAlignmentDelta, stepData.yAlignmentDelta).c_str());
-		stepCounter++;
-	}
-
 	reshade::log_message(reshade::log_level::info, "Start of dof session");
+
 	// set initial shader start state
 	_blendFactor = 0.0f;
 	_currentFrame = 0;
@@ -421,7 +349,6 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
 }
 
 
-// TODO: DOESN'T WORK
 void DepthOfFieldController::migrateReshadeState(reshade::api::effect_runtime* runtime)
 {
 	if(!_cameraToolsConnector.cameraToolsConnected())
@@ -430,7 +357,6 @@ void DepthOfFieldController::migrateReshadeState(reshade::api::effect_runtime* r
 	}
 	switch(_state)
 	{
-		case DepthOfFieldControllerState::Off: 
 		case DepthOfFieldControllerState::Cancelling:
 			return;
 	}
@@ -463,17 +389,40 @@ void DepthOfFieldController::drawShape(ImDrawList* drawList, ImVec2 topLeftScree
 		return;
 	}
 
-	float x = canvasWidthHeight / 2.0f + topLeftScreenCoord.x;
-	float y = canvasWidthHeight / 2.0f + topLeftScreenCoord.y;
-	float maxRadius = (canvasWidthHeight / 2.0f)-5;	// to have some edge
+	const float x = canvasWidthHeight / 2.0f + topLeftScreenCoord.x;
+	const float y = canvasWidthHeight / 2.0f + topLeftScreenCoord.y;
+	const float maxRadius = (canvasWidthHeight / 2.0f)-5.0f;	// to have some space around the edge
 	float maxBokehRadius = _maxBokehSize / 2.0f;
-	maxBokehRadius = maxBokehRadius < 0.00000001 ? 1.0f : maxBokehRadius;
-	ImColor dotColor = ImColor(ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-	drawList->AddCircleFilled(ImVec2(x, y), 1.5f, dotColor);
+	maxBokehRadius = maxBokehRadius < FLT_EPSILON ? 1.0f : maxBokehRadius;
+	const ImColor dotColor = ImColor(ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+	drawList->AddCircleFilled(ImVec2(x, y), 1.5f, dotColor);	// center
+	const float expandFactor = _blurType == DepthOfFieldBlurType::Circular ? 1.0f : 0.5f;		// linear has nodes on 1 side
 	for(auto& step : _cameraSteps)
 	{
-		drawList->AddCircleFilled(ImVec2(x + (((step.xDelta / 2.0) / maxBokehRadius) * maxRadius), y + (((step.yDelta / 2.0) / maxBokehRadius) * maxRadius)), 1.5f, dotColor);
+		drawList->AddCircleFilled(ImVec2(x + (((step.xDelta * expandFactor) / maxBokehRadius) * maxRadius), y + (((step.yDelta * expandFactor) / maxBokehRadius) * maxRadius)), 1.5f, dotColor);
 	}
+}
+
+
+void DepthOfFieldController::renderOverlay()
+{
+	if(_state!=DepthOfFieldControllerState::Rendering || _cameraSteps.size()<=0)
+	{
+		return;
+	}
+
+	ImGui::SetNextWindowBgAlpha(0.9f);
+	ImGui::SetNextWindowPos(ImVec2(10, 10));
+	if(ImGui::Begin("IgcsConnector_DoFProgress", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
+	{
+		const int totalAmountOfSteps = _cameraSteps.size();
+		const float progress = (float)_currentFrame / (float)totalAmountOfSteps;
+		const float progress_saturated = IGCS::Utils::clampEx(progress, 0.0f, 1.0f);
+		char buf[128];
+		sprintf(buf, "%d/%d", (int)(progress_saturated * totalAmountOfSteps), totalAmountOfSteps);
+		ImGui::ProgressBar(progress, ImVec2(0.f, 0.f), buf);
+	}
+	ImGui::End();
 }
 
 
