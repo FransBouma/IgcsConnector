@@ -32,6 +32,13 @@
 /////////////////////////////////////////////////////////////////////////
 #pragma once
 
+enum class DepthOfFieldRenderOrder : int
+{
+	InnerRingToOuterRing,
+	OuterRingToInnerRing,
+	Randomized,
+};
+
 enum class DepthOfFieldBlurType : int
 {
 	Linear,			// for motion blur

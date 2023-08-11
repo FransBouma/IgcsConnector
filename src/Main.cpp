@@ -416,6 +416,9 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 			{
 				case DepthOfFieldControllerState::Off:
 					{
+						// always pass the state to the shader, so it'll reset to 'OFF' if the user accidentally quit the game without clicking done
+						g_depthOfFieldController.writeVariableStateToShader(runtime);
+
 						if(cameraData->cameraEnabled)
 						{
 							if(ImGui::Button("Start depth-of-field session"))
@@ -433,7 +436,7 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 					{
 						if(cameraData->cameraEnabled)
 						{
-							ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.35f);
+							ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.40f);
 							ImGui::AlignTextToFramePadding();
 
 							ImGui::SeparatorText("Focusing");
@@ -486,6 +489,26 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 							if(changed)
 							{
 								g_depthOfFieldController.setNumberOfPointsInnermostRing(numberOfPointsInnermostCircle);
+							}
+
+							int renderOrder = (int)g_depthOfFieldController.getRenderOrder();
+							changed = ImGui::Combo("Render order", &renderOrder, "Inner to outer circle\0Outer to inner circle\0Random\0\0");
+							if(changed)
+							{
+								g_depthOfFieldController.setRenderOrder((DepthOfFieldRenderOrder)renderOrder);
+							}
+
+							float highlightBoostFactor = g_depthOfFieldController.getHighlightBoostFactor();
+							changed = ImGui::DragFloat("Highlight boost factor", &highlightBoostFactor, 0.001f, 0.0f, 1.0f, "%.3f");
+							if(changed)
+							{
+								g_depthOfFieldController.setHighlightBoostFactor(highlightBoostFactor);
+							}
+							float highlightGammaFactor = g_depthOfFieldController.getHighlightGammaFactor();
+							changed = ImGui::DragFloat("Highlight gamma factor", &highlightGammaFactor, 0.001f, 0.1f, 5.0f, "%.3f");
+							if(changed)
+							{
+								g_depthOfFieldController.setHighlightGammaFactor(highlightGammaFactor);
 							}
 
 							switch(blurType)
@@ -555,10 +578,29 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 					}
 					break;
 				case DepthOfFieldControllerState::Rendering:
-					ImGui::Text("Rendering, please wait...");
-					if(ImGui::Button("Cancel"))
 					{
-						g_depthOfFieldController.endSession(runtime);
+						const bool isPaused = g_depthOfFieldController.getRenderPaused();
+						if(isPaused)
+						{
+							ImGui::Text("Rendering (Paused), please wait...");
+							if(ImGui::Button("Unpause rendering"))
+							{
+								g_depthOfFieldController.setRenderPaused(false);
+							}
+						}
+						else
+						{
+							ImGui::Text("Rendering, please wait...");
+							if(ImGui::Button("Pause rendering"))
+							{
+								g_depthOfFieldController.setRenderPaused(true);
+							}
+						}
+						ImGui::SameLine();
+						if(ImGui::Button("Cancel"))
+						{
+							g_depthOfFieldController.endSession(runtime);
+						}
 					}
 					break;
 				case DepthOfFieldControllerState::Done:

@@ -36,6 +36,8 @@
 
 #include "OverlayControl.h"
 #include "Utils.h"
+#include <random>
+#include <algorithm>
 
 DepthOfFieldController::DepthOfFieldController(CameraToolsConnector& connector) : _cameraToolsConnector(connector), _state(DepthOfFieldControllerState::Off), _quality(4), _numberOfPointsInnermostRing(3)
 {
@@ -98,23 +100,17 @@ void DepthOfFieldController::writeVariableStateToShader(reshade::api::effect_run
 {
 	if(_reshadeStateAtStart.isEmpty())
 	{
-		return;
+		std::scoped_lock lock(_reshadeStateMutex);
+		_reshadeStateAtStart.obtainReshadeState(runtime);
 	}
 
-	switch(_state)
-	{
-		case DepthOfFieldControllerState::Start: 
-		case DepthOfFieldControllerState::Setup: 
-		case DepthOfFieldControllerState::Rendering: 
-		case DepthOfFieldControllerState::Done:
-			setUniformIntVariable(runtime, "SessionState", (int)_state);
-			setUniformFloat2Variable(runtime, "FocusDelta", _xFocusDelta, _yFocusDelta);
-			setUniformBoolVariable(runtime, "BlendFrame", _blendFrame);
-			setUniformFloatVariable(runtime, "BlendFactor", _blendFactor);
-			setUniformFloat2Variable(runtime, "AlignmentDelta", _xAlignmentDelta, _yAlignmentDelta);
-			break;
-	}
-
+	setUniformIntVariable(runtime, "SessionState", (int)_state);
+	setUniformFloat2Variable(runtime, "FocusDelta", _xFocusDelta, _yFocusDelta);
+	setUniformBoolVariable(runtime, "BlendFrame", _blendFrame);
+	setUniformFloatVariable(runtime, "BlendFactor", _blendFactor);
+	setUniformFloat2Variable(runtime, "AlignmentDelta", _xAlignmentDelta, _yAlignmentDelta);
+	setUniformFloatVariable(runtime, "HighlightBoost", _highlightBoostFactor);
+	setUniformFloatVariable(runtime, "HighlightGammaFactor", _highlightGammaFactor);
 }
 
 
@@ -155,6 +151,7 @@ void DepthOfFieldController::startSession(reshade::api::effect_runtime* runtime)
 void DepthOfFieldController::endSession(reshade::api::effect_runtime* runtime)
 {
 	_state = DepthOfFieldControllerState::Off;
+	_renderPaused = false;
 	setUniformIntVariable(runtime, "SessionState", (int)_state);
 
 	if(_cameraToolsConnector.cameraToolsConnected())
@@ -249,20 +246,22 @@ void DepthOfFieldController::handleRenderStateFrame()
 			break;
 		case DepthOfFieldRenderFrameState::FrameDone:
 			{
-				reshade::log_message(reshade::log_level::info, IGCS::Utils::formatString("\t\tDone frame: %d.", _currentFrame).c_str());
 				_blendFrame = false;
-				_currentFrame++;
-				if(_currentFrame >= _numberOfFramesToRender)
+				if(!_renderPaused)
 				{
-					// we're done rendering
-					_renderFrameState = DepthOfFieldRenderFrameState::Off;
-					_state = DepthOfFieldControllerState::Done;
-					reshade::log_message(reshade::log_level::info, "Done with dof session");
-				}
-				else
-				{
-					// back to setup for the next frame
-					_renderFrameState = DepthOfFieldRenderFrameState::FrameSetup;
+					_currentFrame++;
+					if(_currentFrame >= _numberOfFramesToRender)
+					{
+						// we're done rendering
+						_renderFrameState = DepthOfFieldRenderFrameState::Off;
+						_state = DepthOfFieldControllerState::Done;
+						reshade::log_message(reshade::log_level::info, "Done with dof session");
+					}
+					else
+					{
+						// back to setup for the next frame
+						_renderFrameState = DepthOfFieldRenderFrameState::FrameSetup;
+					}
 				}
 			}
 			break;
@@ -311,6 +310,21 @@ void DepthOfFieldController::createCircleDoFPoints()
 		}
 
 		pointsOnRing += pointsFirstRing;
+	}
+
+	switch(_renderOrder)
+	{
+		case DepthOfFieldRenderOrder::InnerRingToOuterRing:
+			// nothing, we're already having the points in the right order
+			break;
+		case DepthOfFieldRenderOrder::OuterRingToInnerRing:
+			// reverse the container.
+			std::ranges::reverse(_cameraSteps);
+			break;
+		case DepthOfFieldRenderOrder::Randomized:
+			std::ranges::shuffle(_cameraSteps, std::random_device());
+			break;
+		default: ;
 	}
 }
 

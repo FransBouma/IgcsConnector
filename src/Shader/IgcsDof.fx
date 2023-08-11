@@ -61,14 +61,6 @@ namespace IgcsDOF
 		ui_tooltip = "Controls the gamma factor to boost/dim highlights\n2.2, the default, gives natural colors and brightness";
 		ui_step = 0.01;
 	> = 2.2;
-	uniform float HighlightSharpeningFactor <
-		ui_category = "Highlight tweaking";
-		ui_label="Highlight sharpening factor";
-		ui_type = "drag";
-		ui_min = 0.000; ui_max = 1.00;
-		ui_tooltip = "Controls the sharpness of the bokeh highlight edges.";
-		ui_step = 0.01;
-	> = 0.0;
 		
 	uniform float SetupAlpha <
 		ui_label = "Setup alpha";

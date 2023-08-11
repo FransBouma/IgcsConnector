@@ -39,6 +39,7 @@
 #include "CameraToolsConnector.h"
 #include "ConstantsEnums.h"
 #include <reshade.hpp>
+#include "Utils.h"
 
 #include "ReshadeStateSnapshot.h"
 
@@ -71,7 +72,6 @@ public:
 	/// Sets the focus delta. This controls value 'A' in the design which is the percentage the pixels which have to be in focus have moved over MaxBokehSize.
 	///	This value is used to realign the image when the camera steps a factor of MaxBokehSize.
 	/// </summary>
-	/// <param name="newValue"></param>
 	void setXYFocusDelta(reshade::api::effect_runtime* runtime, float newValueX, float newValueY);
 	/// <summary>
 	/// Starts a new session. 
@@ -96,14 +96,24 @@ public:
 	void setQuality(int newValue) { _quality = newValue; }
 	void setNumberOfPointsInnermostRing(int newValue) { _numberOfPointsInnermostRing = newValue; }
 	void setBlurType(DepthOfFieldBlurType newValue) { _blurType = newValue; }
+	void setHighlightBoostFactor(float newValue) { _highlightBoostFactor = IGCS::Utils::clampEx(newValue, 0.0f, 1.0f); }
+	void setHighlightGammaFactor(float newValue) { _highlightGammaFactor = IGCS::Utils::clampEx(newValue, 0.1f, 5.0f); }
+	void setRenderPaused(bool newValue) { _renderPaused = newValue; }
+	void setRenderOrder(DepthOfFieldRenderOrder newValue) { _renderOrder = newValue; }
+	DepthOfFieldRenderOrder getRenderOrder() { return _renderOrder; }
 	float getMaxBokehSize() { return _maxBokehSize; }
 	float getXFocusDelta() { return _xFocusDelta; }
 	float getYFocusDelta() { return _yFocusDelta; }
 	int getQuality() { return _quality; }
+	float getHighlightBoostFactor() { return _highlightBoostFactor; }
+	float getHighlightGammaFactor() { return _highlightGammaFactor; }
 	DepthOfFieldBlurType getBlurType() { return _blurType; }
 	int getNumberOfPointsInnermostRing() { return _numberOfPointsInnermostRing; }
 	int getNumberOfFramesToWaitPerFrame() { return _numberOfFramesToWaitPerFrame; }
+	bool getRenderPaused() { return _renderPaused; }
+
 	void drawShape(ImDrawList* drawList, ImVec2 topLeftScreenCoord, float canvasWidthHeight);
+	void writeVariableStateToShader(reshade::api::effect_runtime* runtime);
 
 	void setDebugBool1(bool newVal) { _debugBool1 = newVal; }
 	void setDebugBool2(bool newVal) { _debugBool2 = newVal; }
@@ -122,7 +132,6 @@ private:
 	void setUniformFloat2Variable(reshade::api::effect_runtime* runtime, const std::string& uniformName, float value1ToWrite, float value2ToWrite);
 
 	void displayScreenshotSessionStartError(const ScreenshotSessionStartReturnCode sessionStartResult);
-	void writeVariableStateToShader(reshade::api::effect_runtime* runtime);
 	void handleRenderStateFrame();
 
 	CameraToolsConnector& _cameraToolsConnector;
@@ -131,23 +140,32 @@ private:
 
 	std::function<void(reshade::api::effect_runtime*)>  _onPresentWorkFunc = nullptr;			// if set, this function is called when the onPresentWork counter reaches 0.
 
-	float _maxBokehSize = 0.05;		// value 'B', so the max diameter of a circle we're going to walk. In world units of the engine
+
+// TODO Store these values as defaults PER GAME exe in an ini file? 
+
+
+
+	float _maxBokehSize = 0.25;		// value 'B', so the max diameter of a circle we're going to walk. In world units of the engine
 	float _xFocusDelta = 0.0f;		// value 'A', the relationship between stepping over maxBokehSize and the movement of the pixels that have to be in focus. X specific
 	float _yFocusDelta = 0.0f;		// value 'A', the relationship between stepping over maxBokehSize and the movement of the pixels that have to be in focus. X specific
 	bool _blendFrame = false;		// if true, the shader will blend the curreent frame if state is Render
 	float _blendFactor = 0.0f;		// for the shader, the blend factor to use when blending a frame
 	float _xAlignmentDelta = 0.0f;	// for the shader, the alignment x delta to use
 	float _yAlignmentDelta = 0.0f;	// for the shader, the alignment y delta to use
+	float _highlightBoostFactor = 0.9f;
+	float _highlightGammaFactor = 2.2f;
 	int _onPresentWorkCounter = 0;					// if 0, reshadeBeginEffectsCalled will call onPresentWorkFunc (if set), otherwise this counter is decreased.
 
 	DepthOfFieldRenderFrameState _renderFrameState = DepthOfFieldRenderFrameState::Off;
 	int _frameWaitCounter = 0;		// When 0 move the render state to the next state, otherwise decrease
-	int _currentFrame = -1;		// < 0: no frame, >= 0 the current frame, 0 based. 
+	int _currentFrame = -1;		// < 0: no frame, >= 0 the current frame, 0 based.
+	bool _renderPaused = false;
 
 	int _numberOfFramesToRender = 0;
 	int _numberOfFramesToWaitPerFrame = 1;
 	int _quality;		// # of circles
 	int _numberOfPointsInnermostRing;
+	DepthOfFieldRenderOrder _renderOrder = DepthOfFieldRenderOrder::InnerRingToOuterRing;
 
 	float _debugVal1 = 0.0f;
 	float _debugVal2 = 0.0f;
