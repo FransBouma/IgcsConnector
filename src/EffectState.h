@@ -61,6 +61,10 @@ public:
 	/// <param name="idSource"></param>
 	void migrateIds(const EffectState& idSource);
 	void applyStateFromTo(reshade::api::effect_runtime* runtime, EffectState destinationEffect, float interpolationFactor);
+	void setUniformIntVariable(reshade::api::effect_runtime* runtime, const std::string& uniformName, int valueToWrite);
+	void setUniformFloatVariable(reshade::api::effect_runtime* runtime, const std::string& uniformName, float valueToWrite);
+	void setUniformFloat2Variable(reshade::api::effect_runtime* runtime, const std::string& uniformName, float value1ToWrite, float value2ToWrite);
+	void setUniformBoolVariable(reshade::api::effect_runtime* runtime, const std::string& uniformName, bool valueToWrite);
 
 	std::string name() { return _name; }
 
@@ -69,8 +73,9 @@ private:
 
 	std::string _name;
 	// Names are usable across reloads of a preset. It might still be names aren't present after a reload (e.g. a shader changed). But for our use case this isn't important. 
-	std::unordered_map<std::string, uint64_t> _uniformVariableIdPerName;
-	std::unordered_map<std::string, DirectX::XMFLOAT4> _uniformValuePerName;		// stored with their uniform name for this effect. We store floats as float4.
+	std::unordered_map<std::string, uint64_t> _uniformFloatVariableIdPerName;			// for Floats only
+	std::unordered_map<std::string, DirectX::XMFLOAT4> _uniformFloatValuePerName;		// stored with their uniform name for this effect. We store floats as float4.
+	std::unordered_map<std::string, uint64_t> _uniformVariableIdPerName;				// all variables of the effect, floats and others.
 };
 
 

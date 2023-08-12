@@ -32,6 +32,7 @@
 /////////////////////////////////////////////////////////////////////////
 #include "stdafx.h"
 #include "ScreenshotController.h"
+#include "CameraToolsConnector.h"
 #include <direct.h>
 #include "OverlayControl.h"
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -41,7 +42,7 @@
 
 #include "fpng.h"
 
-ScreenshotController::ScreenshotController()
+ScreenshotController::ScreenshotController(CameraToolsConnector& connector) : _cameraToolsConnector(connector)
 {
 }
 
@@ -112,10 +113,7 @@ void ScreenshotController::cancelSession()
 	case ScreenshotControllerState::Off: 
 		return;
 	case ScreenshotControllerState::InSession:
-		if(nullptr!=_igcs_EndScreenshotSessionFunc)
-		{
-			_igcs_EndScreenshotSessionFunc();
-		}
+		_cameraToolsConnector.endScreenshotSession();
 		_state = ScreenshotControllerState::Canceling;
 		// kill the wait thread
 		_waitCompletionHandle.notify_all();
@@ -124,39 +122,6 @@ void ScreenshotController::cancelSession()
 		_state = ScreenshotControllerState::Canceling;
 		break;
 	}
-}
-
-
-void ScreenshotController::connectToCameraTools()
-{
-	// Enumerate all modules in the process and check if they export a defined function (IGCS_StartScreenshotSession). If so, we map to the known functions. 
-	const HANDLE processHandle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, GetCurrentProcessId());
-	if(nullptr==processHandle)
-	{
-		return;
-	}
-	HMODULE modules[512];
-	DWORD cbNeeded;
-	if(EnumProcessModules(processHandle, modules, sizeof(modules), &cbNeeded))
-	{
-		for(int i=0;i< cbNeeded/sizeof(HMODULE); i++)
-		{
-			// check if this module exports the IGCS_StartScreenshotSession function.
-			const HMODULE moduleHandle = modules[i];
-			_igcs_StartScreenshotSessionFunc = (IGCS_StartScreenshotSession)GetProcAddress(moduleHandle, "IGCS_StartScreenshotSession");
-			if(nullptr==_igcs_StartScreenshotSessionFunc)
-			{
-				// doesn't export it, not an IGCS camera tools dll
-				continue;
-			}
-			// map the other functions
-			_igcs_EndScreenshotSessionFunc = (IGCS_EndScreenshotSession)GetProcAddress(moduleHandle, "IGCS_EndScreenshotSession");
-			_igcs_MoveCameraPanoramaFunc = (IGCS_MoveCameraPanorama)GetProcAddress(moduleHandle, "IGCS_MoveCameraPanorama");
-			_igcs_MoveCameraMultishotFunc = (IGCS_MoveCameraMultishot)GetProcAddress(moduleHandle, "IGCS_MoveCameraMultishot");
-			break;
-		}
-	}
-	OverlayControl::addNotification(cameraToolsConnected() ? "Camera tools connected" : "No camera tools found");
 }
 
 
@@ -211,11 +176,11 @@ bool ScreenshotController::startSession()
 #ifdef _DEBUG
 	if(_typeOfShot==ScreenshotType::DebugGrid)
 	{
-		typeOfShotToUse = (uint8_t)ScreenshotType::Lightfield;
+		typeOfShotToUse = (uint8_t)ScreenshotType::MultiShot;
 	}
 #endif
 
-	const auto sessionStartResult = _igcs_StartScreenshotSessionFunc(typeOfShotToUse);
+	const auto sessionStartResult = _cameraToolsConnector.startScreenshotSession(typeOfShotToUse);
 	if(sessionStartResult != ScreenshotSessionStartReturnCode::AllOk)
 	{
 		displayScreenshotSessionStartError(sessionStartResult);
@@ -227,7 +192,7 @@ bool ScreenshotController::startSession()
 
 void ScreenshotController::startHorizontalPanoramaShot(float totalFoVInDegrees, float overlapPercentagePerPanoShot, float currentFoVInDegrees, bool isTestRun)
 {
-	if(!cameraToolsConnected())
+	if(!_cameraToolsConnector.cameraToolsConnected())
 	{
 		return;
 	}
@@ -271,7 +236,7 @@ void ScreenshotController::startHorizontalPanoramaShot(float totalFoVInDegrees, 
 
 void ScreenshotController::startLightfieldShot(float distancePerStep, int numberOfShots, bool isTestRun)
 {
-	if(!cameraToolsConnected())
+	if(!_cameraToolsConnector.cameraToolsConnected())
 	{
 		return;
 	}
@@ -280,7 +245,7 @@ void ScreenshotController::startLightfieldShot(float distancePerStep, int number
 	_isTestRun = isTestRun;
 	_lightField_distancePerStep = distancePerStep;
 	_numberOfShotsToTake = numberOfShots;
-	_typeOfShot = ScreenshotType::Lightfield;
+	_typeOfShot = ScreenshotType::MultiShot;
 
 	// tell the camera tools we're starting a session.
 	if(!startSession())
@@ -302,7 +267,7 @@ void ScreenshotController::startLightfieldShot(float distancePerStep, int number
 
 void ScreenshotController::startDebugGridShot()
 {
-	if(!cameraToolsConnected())
+	if(!_cameraToolsConnector.cameraToolsConnected())
 	{
 		return;
 	}
@@ -354,7 +319,7 @@ void ScreenshotController::modifyCamera()
 	case ScreenshotType::HorizontalPanorama:
 		moveCameraForPanorama(1, false);
 		break;
-	case ScreenshotType::Lightfield:
+	case ScreenshotType::MultiShot:
 		moveCameraForLightfield(1, false);
 		break;
 #ifdef _DEBUG
@@ -374,7 +339,7 @@ std::string ScreenshotController::typeOfShotAsString()
 	{
 	case ScreenshotType::HorizontalPanorama:
 		return "HorizontalPanorama";
-	case ScreenshotType::Lightfield:
+	case ScreenshotType::MultiShot:
 		return "Lightfield";
 #ifdef _DEBUG
 	case ScreenshotType::DebugGrid:
@@ -388,11 +353,6 @@ std::string ScreenshotController::typeOfShotAsString()
 
 void ScreenshotController::moveCameraForLightfield(int direction, bool end)
 {
-	if(nullptr==_igcs_MoveCameraMultishotFunc)
-	{
-		return;
-	}
-
 	float distance = direction * _lightField_distancePerStep;
 	if (end)
 	{
@@ -400,34 +360,24 @@ void ScreenshotController::moveCameraForLightfield(int direction, bool end)
 	}
 	// we don't know the movement speed, so we pass the distance to the camera, and the camere has to divide by movement speed so it's independent of movement speed.
 	// we don't move up/down so we pass in 0. We don't change the fov and the step is relative to the current camera location.
-	_igcs_MoveCameraMultishotFunc(distance, 0.0f, 0.0f, false);
+	_cameraToolsConnector.moveCameraMultishot(distance, 0.0f, 0.0f, false);
 }
 
 
 void ScreenshotController::moveCameraForPanorama(int direction, bool end)
 {
-	if(nullptr == _igcs_MoveCameraPanoramaFunc)
-	{
-		return;
-	}
-
 	float distance = direction * _pano_anglePerStep;
 	if (end)
 	{
 		distance *= 0.5f * _numberOfShotsToTake;
 	}
 	// we don't know the movement speed, so we pass the distance to the camera, and the camere has to divide by movement speed so it's independent of movement speed.
-	_igcs_MoveCameraPanoramaFunc(distance);
+	_cameraToolsConnector.moveCameraPanorama(distance);
 }
 
 
 void ScreenshotController::moveCameraForDebugGrid(int shotCounter, bool end)
 {
-	if(nullptr == _igcs_MoveCameraMultishotFunc)
-	{
-		return;
-	}
-
 	float horizontalStep = 0.0f;
 	float verticalStep = 0.0f;
 	if(end)
@@ -444,7 +394,7 @@ void ScreenshotController::moveCameraForDebugGrid(int shotCounter, bool end)
 	}
 	// we don't know the movement speed, so we pass the distance to the camera, and the camere has to divide by movement speed so it's independent of movement speed.
 	// we don't move up/down so we pass in 0. We don't change the fov and the step is relative to the current camera location.
-	_igcs_MoveCameraMultishotFunc(horizontalStep, verticalStep, (shotCounter % 5) * 10.0f, true);
+	_cameraToolsConnector.moveCameraMultishot(horizontalStep, verticalStep, (shotCounter % 5) * 10.0f, true);
 }
 
 
@@ -534,7 +484,7 @@ void ScreenshotController::waitForShots()
 	_waitCompletionHandle.wait(lock, [this] {return _state != ScreenshotControllerState::InSession; });
 	// state isn't in-session, we're notified so we're all goed to save the shots.
 	// signal the tools the session ended.
-	_igcs_EndScreenshotSessionFunc();
+	_cameraToolsConnector.endScreenshotSession();
 }
 
 

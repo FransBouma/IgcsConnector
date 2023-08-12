@@ -34,9 +34,6 @@
     <ClInclude Include="ReshadeStateSnapshot.h">
       <Filter>Include</Filter>
     </ClInclude>
-    <ClInclude Include="CDataFile.h">
-      <Filter>Code</Filter>
-    </ClInclude>
     <ClInclude Include="EffectState.h">
       <Filter>Include</Filter>
     </ClInclude>
@@ -50,6 +47,12 @@
       <Filter>Include</Filter>
     </ClInclude>
     <ClInclude Include="WorkItem.h">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="CameraToolsConnector.h">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="DepthOfFieldController.h">
       <Filter>Include</Filter>
     </ClInclude>
   </ItemGroup>
@@ -86,9 +89,6 @@
     <ClCompile Include="ReshadeStateSnapshot.cpp">
       <Filter>Code</Filter>
     </ClCompile>
-    <ClCompile Include="CDataFile.cpp">
-      <Filter>Code</Filter>
-    </ClCompile>
     <ClCompile Include="EffectState.cpp">
       <Filter>Code</Filter>
     </ClCompile>
@@ -96,6 +96,12 @@
       <Filter>Code</Filter>
     </ClCompile>
     <ClCompile Include="CameraPathData.cpp">
+      <Filter>Code</Filter>
+    </ClCompile>
+    <ClCompile Include="CameraToolsConnector.cpp">
+      <Filter>Code</Filter>
+    </ClCompile>
+    <ClCompile Include="DepthOfFieldController.cpp">
       <Filter>Code</Filter>
     </ClCompile>
   </ItemGroup>

@@ -59,6 +59,10 @@ public:
 	bool isEmpty() const { return _effectStatePerEffectName.size() <= 0; }
 	int numberOfContainedEffects() { return _effectStatePerEffectName.size(); }
 	void logContents();
+	void setUniformIntVariable(reshade::api::effect_runtime* runtime, const std::string& effectName, const std::string& uniformName, int valueToWrite);
+	void setUniformFloatVariable(reshade::api::effect_runtime* runtime, const std::string& effectName, const std::string& uniformName, float valueToWrite);
+	void setUniformFloat2Variable(reshade::api::effect_runtime* runtime, const std::string& effectName, const std::string& uniformName, float value1ToWrite, float value2ToWrite);
+	void setUniformBoolVariable(reshade::api::effect_runtime* runtime, const std::string& effectName, const std::string& uniformName, bool valueToWrite);
 
 private:
 	void addEffectState(EffectState toAdd);

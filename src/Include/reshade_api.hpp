@@ -7,7 +7,7 @@
 
 #include "reshade_api_device.hpp"
 
-namespace reshade::api
+namespace reshade { namespace api
 {
 	/// <summary>
 	/// An opaque handle to a technique in an effect.
@@ -35,7 +35,7 @@ namespace reshade::api
 	/// A ReShade effect runtime, used to control effects.
 	/// <para>A separate runtime is instantiated for every swap chain.</para>
 	/// </summary>
-	RESHADE_DEFINE_INTERFACE_WITH_BASE(effect_runtime, swapchain)
+	struct __declspec(novtable) effect_runtime : public swapchain
 	{
 		/// <summary>
 		/// Gets the main graphics command queue associated with this effect runtime.
@@ -49,7 +49,7 @@ namespace reshade::api
 		/// </summary>
 		/// <remarks>
 		/// The resource the render target views point to has to be in the <see cref="resource_usage::render_target"/> state.
-		/// This call may modify current state on the command list (pipeline, render targets, descriptor sets, ...), so it may be necessary for an add-on to backup and restore state around it if the application does not bind all state again afterwards already.
+		/// This call may modify current state on the command list (pipeline, render targets, descriptor tables, ...), so it may be necessary for an add-on to backup and restore state around it if the application does not bind all state again afterwards already.
 		/// Calling this with <paramref name="rtv"/> set to zero will cause nothing to be rendered, but uniform variables to still be updated.
 		/// </remarks>
 		/// <param name="cmd_list">Command list to add effect rendering commands to.</param>
@@ -596,7 +596,7 @@ namespace reshade::api
 		/// <remarks>
 		/// The width and height of the specified render target should match those used to render all other effects!
 		/// The resource the render target views point to has to be in the <see cref="resource_usage::render_target"/> state.
-		/// This call may modify current state on the command list (pipeline, render targets, descriptor sets, ...), so it may be necessary for an add-on to backup and restore state around it if the application does not bind all state again afterwards already.
+		/// This call may modify current state on the command list (pipeline, render targets, descriptor tables, ...), so it may be necessary for an add-on to backup and restore state around it if the application does not bind all state again afterwards already.
 		/// </remarks>
 		/// <param name="technique">Opaque handle to the technique.</param>
 		/// <param name="cmd_list">Command list to add effect rendering commands to.</param>
@@ -643,7 +643,7 @@ namespace reshade::api
 		/// Makes ReShade block any keyboard and mouse input from reaching the game for the duration of the next frame.
 		/// Call this every frame for as long as input should be blocked. This can be used to ensure input is only applied to overlays created in a <see cref="addon_event::reshade_overlay"/> callback.
 		/// </summary>
-		virtual void block_input_next_frame();
+		virtual void block_input_next_frame() = 0;
 
 		/// <summary>
 		/// Gets the virtual key code of the last key that was pressed.
@@ -723,4 +723,4 @@ namespace reshade::api
 		/// <param name="value">Value of the definition.</param>
 		virtual void set_preprocessor_definition_for_effect(const char *effect_name, const char *name, const char *value) = 0;
 	};
-}
+} }

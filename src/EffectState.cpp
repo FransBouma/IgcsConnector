@@ -39,16 +39,17 @@ EffectState::EffectState(std::string name) : _name(name)
 
 void EffectState::addUniform(reshade::api::effect_uniform_variable id, std::string name, float* values)
 {
-	_uniformValuePerName.emplace(name, DirectX::XMFLOAT4(values));
-	_uniformVariableIdPerName.emplace(name, id.handle);
+	_uniformFloatValuePerName.emplace(name, DirectX::XMFLOAT4(values));
+	_uniformFloatVariableIdPerName.emplace(name, id.handle);
 }
+
 
 void EffectState::applyState(reshade::api::effect_runtime* runtime)
 {
-	for(auto& nameValuePair : _uniformValuePerName)
+	for(auto& nameValuePair : _uniformFloatValuePerName)
 	{
 		// grab the id so we can use it to set the variable.
-		const auto id = _uniformVariableIdPerName[nameValuePair.first];
+		const auto id = _uniformFloatVariableIdPerName[nameValuePair.first];
 		if(id==0)
 		{
 			continue;
@@ -83,55 +84,64 @@ void EffectState::obtainEffectState(reshade::api::effect_runtime* runtime)
 			sourceRuntime->get_uniform_value_float(variable, values, 4);
 			addUniform(variable, uniformName, values);
 		}
+		// Always store the id as well in the general map, so we can use it to set a value different from a float if we need to using another context than the paths/interpolation
+		_uniformVariableIdPerName.emplace(uniformName, variable.handle);
 	});
 }
 
 
 void EffectState::migrateIds(const EffectState& idSource)
 {
+	_uniformFloatVariableIdPerName.clear();
 	_uniformVariableIdPerName.clear();
 
-	for(auto& nameValuePair : idSource._uniformValuePerName)
+	for(auto& nameValuePair : idSource._uniformFloatValuePerName)
 	{
-		auto sourceIdsPerName = idSource._uniformVariableIdPerName;
+		auto sourceIdsPerName = idSource._uniformFloatVariableIdPerName;
 		const auto id = sourceIdsPerName[nameValuePair.first];
-		if(!_uniformValuePerName.contains(nameValuePair.first))
+		if(!_uniformFloatValuePerName.contains(nameValuePair.first))
 		{
 			// add it, it was not yet known
-			_uniformValuePerName[nameValuePair.first] = nameValuePair.second;
+			_uniformFloatValuePerName[nameValuePair.first] = nameValuePair.second;
 		}
-		_uniformVariableIdPerName[nameValuePair.first] = id;
+		_uniformFloatVariableIdPerName[nameValuePair.first] = id;
 	}
 	// it might be the new state has less variables than we had in the previous state. Check if there are left over variables.
 	std::vector<std::string> toRemove;
-	for(auto& nameValuePair : _uniformValuePerName)
+	for(auto& nameValuePair : _uniformFloatValuePerName)
 	{
-		if(!_uniformVariableIdPerName.contains(nameValuePair.first))
+		if(!_uniformFloatVariableIdPerName.contains(nameValuePair.first))
 		{
 			// no longer there
 			toRemove.push_back(nameValuePair.first);
 		}
 	}
 
+	for(auto& nameValuePair : idSource._uniformVariableIdPerName)
+	{
+		// simply copy over
+		_uniformVariableIdPerName[nameValuePair.first] = nameValuePair.second;
+	}
+
 	for(auto& it : toRemove)
 	{
-		_uniformValuePerName.erase(it);
+		_uniformFloatValuePerName.erase(it);
 	}
 }
 
 
 void EffectState::applyStateFromTo(reshade::api::effect_runtime* runtime, EffectState destinationEffect, float interpolationFactor)
 {
-	auto& destinationValuesPerName = destinationEffect._uniformValuePerName;
+	auto& destinationValuesPerName = destinationEffect._uniformFloatValuePerName;
 
-	for(auto& nameValuePair : _uniformValuePerName)
+	for(auto& nameValuePair : _uniformFloatValuePerName)
 	{
 		if(!destinationValuesPerName.contains(nameValuePair.first))
 		{
 			continue;
 		}
 		const auto& destinationValues = destinationValuesPerName[nameValuePair.first];
-		const auto& id = _uniformVariableIdPerName[nameValuePair.first];
+		const auto& id = _uniformFloatVariableIdPerName[nameValuePair.first];
 
 		const float x = IGCS::Utils::lerp(nameValuePair.second.x, destinationValues.x, interpolationFactor);
 		const float y = IGCS::Utils::lerp(nameValuePair.second.y, destinationValues.y, interpolationFactor);
@@ -139,4 +149,48 @@ void EffectState::applyStateFromTo(reshade::api::effect_runtime* runtime, Effect
 		const float w = IGCS::Utils::lerp(nameValuePair.second.w, destinationValues.w, interpolationFactor);
 		runtime->set_uniform_value_float(reshade::api::effect_uniform_variable(id), x, y, z, w);
 	}
+}
+
+
+void EffectState::setUniformIntVariable(reshade::api::effect_runtime* runtime, const std::string& uniformName, int valueToWrite)
+{
+	if(!_uniformVariableIdPerName.contains(uniformName))
+	{
+		return;
+	}
+	const uint64_t uniformId = _uniformVariableIdPerName[uniformName];
+	runtime->set_uniform_value_int(reshade::api::effect_uniform_variable(uniformId), valueToWrite);
+}
+
+
+void EffectState::setUniformFloatVariable(reshade::api::effect_runtime* runtime, const std::string& uniformName, float valueToWrite)
+{
+	if(!_uniformVariableIdPerName.contains(uniformName))
+	{
+		return;
+	}
+	const uint64_t uniformId = _uniformVariableIdPerName[uniformName];
+	runtime->set_uniform_value_float(reshade::api::effect_uniform_variable(uniformId), valueToWrite);
+}
+
+
+void EffectState::setUniformFloat2Variable(reshade::api::effect_runtime* runtime, const std::string& uniformName, float value1ToWrite, float value2ToWrite)
+{
+	if(!_uniformVariableIdPerName.contains(uniformName))
+	{
+		return;
+	}
+	const uint64_t uniformId = _uniformVariableIdPerName[uniformName];
+	runtime->set_uniform_value_float(reshade::api::effect_uniform_variable(uniformId), value1ToWrite, value2ToWrite);
+}
+
+
+void EffectState::setUniformBoolVariable(reshade::api::effect_runtime* runtime, const std::string& uniformName, bool valueToWrite)
+{
+	if(!_uniformVariableIdPerName.contains(uniformName))
+	{
+		return;
+	}
+	const uint64_t uniformId = _uniformVariableIdPerName[uniformName];
+	runtime->set_uniform_value_bool(reshade::api::effect_uniform_variable(uniformId), valueToWrite);
 }

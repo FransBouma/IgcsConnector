@@ -163,8 +163,10 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="CameraPathData.h" />
+    <ClInclude Include="CameraToolsConnector.h" />
     <ClInclude Include="CameraToolsData.h" />
     <ClInclude Include="ConstantsEnums.h" />
+    <ClInclude Include="DepthOfFieldController.h" />
     <ClInclude Include="EffectState.h" />
     <ClInclude Include="fpng.h" />
     <ClInclude Include="OverlayControl.h" />
@@ -181,6 +183,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="CameraPathData.cpp" />
+    <ClCompile Include="CameraToolsConnector.cpp" />
+    <ClCompile Include="DepthOfFieldController.cpp" />
     <ClCompile Include="EffectState.cpp" />
     <ClCompile Include="fpng.cpp" />
     <ClCompile Include="Main.cpp" />
