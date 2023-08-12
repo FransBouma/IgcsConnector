@@ -1,14 +1,15 @@
 # IGCS Connector
-ReShade 5.8+ addin to perform various actions within ReShade for connected camera tools. Features include: create automated horizontal panorama shots and lightfield shots and recording and playback of ReShade shaders during a camera path. Additionally, it also shows live camera information
-obtained from the game engine. The documentation page of the camera tools for a particular game on the [Otis Photomode Mods site](https://opm.fransbouma.com) will 
-mention if it supports the IGCSConnector and which version.
+ReShade 5.9+ addon to perform various actions within ReShade for connected camera tools. Features include: create automated horizontal panorama shots and lightfield shots and recording and playback of ReShade shaders during a camera path, as well as an advanced multi-sampling based Depth of Field system.
+
+Additionally, it also shows live camera information obtained from the game engine. The documentation page of the camera tools for a particular 
+game on the [Otis Photomode Mods site](https://opm.fransbouma.com) will mention if it supports the IGCSConnector and which version.
 
 There's no 32bit version as there's no 32bit IGCS camera system prepared with the required API nor will there be in the future.
 
-Requirements: ReShade 5.8+ with addon support, supported IGCS based camera tools.
+Requirements: ReShade 5.9+ with addon support, supported IGCS based camera tools.
 
 ## How to use
-Place the `Igcsconnector.addon64` in the same folder as where the game exe is located. This is in most cases the same folder as where the ReShade 5.8+ dll
+Place the `Igcsconnector.addon64` in the same folder as where the game exe is located. This is in most cases the same folder as where the ReShade 5.9+ dll
 is located. Only for games which use Vulkan, the ReShade dll is likely elsewhere. For Unreal Engine powered games there might be two
 game exe's: one in the game's installation folder, and one in a folder deeper into that folder, e.g. 
 `GameName\Binaries\Win64\GameName-Win64-Shipping.exe`; the IGCS Connector addon has to be in that second folder, in our example:
@@ -17,9 +18,16 @@ game exe's: one in the game's installation folder, and one in a folder deeper in
 Be sure to use the ReShade version which supports Addons (so the unsigned version). When you start your game, the `Addons` tab in 
 the ReShade gui should show the IGCS Connector information and controls. 
 
-To obtain the unsigned ReShade version, go to <https://ReShade.me> and click on *Download*, then on the bottom green button to download the **ReShade version with Add-on support**. 
+To obtain the unsigned ReShade version, go to <https://ReShade.me> and click on *Download*, then on the bottom green button 
+to download the **ReShade version with Add-on support**. 
 
 ## Available features
+
+### Depth of Field
+
+The addon uses a shader and texture as well as the connected camera tools to render the still image with realistic bokeh and no artifacts. No depth buffer
+is required for this effect to work. This depth of field effect requires several steps to be taken as well as a separate shader and texture to be installed in
+ReShade. For an in-depth guide, please visit: https://opm.fransbouma.com/igcsdof.htm
 
 ### Screenshot taking
 
