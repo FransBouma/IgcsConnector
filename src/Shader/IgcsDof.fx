@@ -4,7 +4,7 @@
 // the IGCS Connector for IGCS powered camera tools.
 //
 // By Frans Bouma, aka Otis / Infuse Project (Otis_Inf)
-// https://fransbouma.com 
+// https://opm.fransbouma.com 
 //
 // This shader has been released under the following license:
 //
@@ -37,9 +37,20 @@
 
 namespace IgcsDOF
 {
+	#define IGCS_DOF_SHADER_VERSION "v1.0.0"
+	
+// #define IGCS_DOF_DEBUG	
+	
 	// ------------------------------
 	// Visible values
 	// ------------------------------
+		
+	uniform float SetupAlpha <
+		ui_label = "Setup alpha";
+		ui_type = "drag";
+		ui_min = 0.0; ui_max = 1.0;
+		ui_step = 0.001;
+	> = 0.5;
 
 	// ------------------------------
 	// Hidden values, set by the connector
@@ -52,6 +63,7 @@ namespace IgcsDOF
 		ui_min = 0.00; ui_max = 1.00;
 		ui_tooltip = "Will boost/dim the highlights a small amount";
 		ui_step = 0.001;
+		hidden=true;
 	> = 0.50;
 	uniform float HighlightGammaFactor <
 		ui_category = "Highlight tweaking";
@@ -60,21 +72,15 @@ namespace IgcsDOF
 		ui_min = 0.001; ui_max = 5.00;
 		ui_tooltip = "Controls the gamma factor to boost/dim highlights\n2.2, the default, gives natural colors and brightness";
 		ui_step = 0.01;
+		hidden=true;
 	> = 2.2;
-		
-	uniform float SetupAlpha <
-		ui_label = "Setup alpha";
-		ui_type = "drag";
-		ui_min = 0.0; ui_max = 1.0;
-		ui_step = 0.001;
-	> = 0.5;
-
 	
 	uniform float2 FocusDelta <
 		ui_label = "Focus delta";
 		ui_type = "drag";
 		ui_min = -1.0; ui_max = 1.0;
 		ui_step = 0.001;
+		hidden=true;
 	> = float2(0.0, 0.0);
 
 	uniform int SessionState < 
@@ -82,10 +88,12 @@ namespace IgcsDOF
 		ui_min= 0; ui_max=1;
 		ui_items="Off\0SessionStart\0Setup\0Render\0Done\0";		// 0: done, 1: start, 2: setup, 3: render, 4: done
 		ui_label = "Session state";
+		hidden=true;
 	> = 0;
 
 	uniform bool BlendFrame <
 		ui_label = "Blend frame";				// if true and state is render, the current framebuffer is blended with the temporary result.
+		hidden=true;
 	> = false;
 	
 	uniform float BlendFactor < 				// Which is used as alpha for the current framebuffer to blend with the temporary result. 
@@ -93,14 +101,44 @@ namespace IgcsDOF
 		ui_type = "drag";
 		ui_min = 0.0f; ui_max = 1.0f;
 		ui_step = 0.01f;
+		hidden=true;
 	> = 0.0f;
 	
 	uniform float2 AlignmentDelta <				// Which is used as alignment delta for the current framebuffer to determine with which pixel to blend with.
 		ui_type = "drag";
 		ui_step = 0.001;
 		ui_min = 0.000; ui_max = 1.000;
+		hidden=true;
 	> = float2(0.0f, 0.0f);
 
+	uniform bool ShowMagnifier<
+		ui_label = "Show magnifier";
+		hidden=true;
+	> = false;
+	
+	uniform float MagnificationFactor <
+		ui_label = "MagnificationFactor";
+		ui_type = "drag";
+		ui_min = 1.0; ui_max = 10.0;
+		ui_step = 1.0;
+		hidden=true;
+	> = 2.0;
+	
+	uniform float2 MagnificationArea <				// Which is used as alignment delta for the current framebuffer to determine with which pixel to blend with.
+		ui_type = "drag";
+		ui_step = 0.001;
+		ui_min = 0.01; ui_max = 1.000;
+		hidden=true;
+	> = float2(0.1f, 0.1f);
+
+	uniform float2 MagnificationLocationCenter <				// Which is used as alignment delta for the current framebuffer to determine with which pixel to blend with.
+		ui_type = "drag";
+		ui_step = 0.001;
+		ui_min = 0.01; ui_max = 1.000;
+		hidden=true;
+	> = float2(0.5f, 0.5f);
+	
+#ifdef IGCS_DOF_DEBUG
 	uniform bool DBBool1<
 		ui_label = "DBG Bool1";
 	> =false;
@@ -110,7 +148,8 @@ namespace IgcsDOF
 	uniform bool DBBool3<
 		ui_label = "DBG Bool3";
 	> =false;
-	
+#endif
+
 #ifndef BUFFER_PIXEL_SIZE
 	#define BUFFER_PIXEL_SIZE	ReShade::PixelSize
 #endif
@@ -123,6 +162,7 @@ namespace IgcsDOF
 	texture texBlendTempResult1		{ Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = RGBA32F; };
 	texture texBlendTempResult2		{ Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = RGBA32F; };
 	
+	sampler BackBufferPoint			{ Texture = ReShade::BackBufferTex; MagFilter = POINT; MinFilter = POINT; MipFilter = POINT; AddressU = CLAMP; AddressV = CLAMP; AddressW = CLAMP; };
 	sampler SamplerCDNoise			{ Texture = texCDNoise; MipFilter = POINT; MinFilter = POINT; MagFilter = POINT; AddressU = WRAP; AddressV = WRAP; AddressW = WRAP;};
 	sampler SamplerOriginalFBCache	{ Texture = texOriginalFBCache; MagFilter = POINT; MinFilter = POINT; MipFilter = POINT; AddressU = CLAMP; AddressV = CLAMP; AddressW = CLAMP; };
 	sampler SamplerBlendTempResult1	{ Texture = texBlendTempResult1; MagFilter = POINT; MinFilter = POINT; MipFilter = POINT; AddressU = CLAMP; AddressV = CLAMP; AddressW = CLAMP; };
@@ -174,7 +214,24 @@ namespace IgcsDOF
 			fragment = tex2Dlod(ReShade::BackBuffer, float4(texcoord, 0, 0));
 		}
 	}
-	
+
+
+	void PS_HandleMagnification(float4 vpos : SV_Position, float2 texcoord : TEXCOORD, out float4 fragment : SV_Target0)
+	{
+		fragment = tex2Dlod(ReShade::BackBuffer, float4(texcoord, 0, 0));
+		if(SessionState==2 && ShowMagnifier)
+		{
+			float2 areaTopLeft = MagnificationLocationCenter - (MagnificationArea / 2.0f);
+			float2 areaBottomRight = MagnificationLocationCenter + (MagnificationArea / 2.0f);
+			if(texcoord.x >= areaTopLeft.x && texcoord.y >= areaTopLeft.y && texcoord.x <= areaBottomRight.x && texcoord.y <= areaBottomRight.y)
+			{
+				// inside magnify area
+				float2 sourceCoord = ((texcoord - MagnificationLocationCenter) / MagnificationFactor) + MagnificationLocationCenter;
+				fragment = tex2Dlod(BackBufferPoint, float4(sourceCoord, 0, 0));
+			}
+		}
+	}	
+
 	
 	void PS_HandleStateRender(float4 vpos : SV_Position, float2 texcoord : TEXCOORD, out float4 fragment : SV_Target0)
 	{
@@ -235,6 +292,17 @@ namespace IgcsDOF
 
 
 	technique IgcsDOF
+	#if __RESHADE__ >= 40000
+	< ui_tooltip = "IGCS Depth of Field worker shader "
+			IGCS_DOF_SHADER_VERSION
+			"\n===========================================\n\n"
+			"IGCS DoF is an addon-powered advanced depth of field system which\n"
+			"uses Otis_Inf's camera tools as well as the IgcsConnector Reshade Addon\n"
+			"to produce realistic depth of field effects. This shader works only\n"
+			"with the addon and camera tools present.\n\n"
+			"IGCS DoF was written by Frans 'Otis_Inf' Bouma\n"
+			"https://opm.fransbouma.com | https://github.com/FransBouma/IgcsConnector"; >
+#endif
 	{
 		pass HandleStateStartPass { 
 			// If state is 'Start': writes original framebuffer to both render targets
@@ -247,6 +315,11 @@ namespace IgcsDOF
 			// If state is 'Setup': writes original framebuffer blended with the texOriginalFBCache to the output
 			// If state isn't 'Setup': it'll copy the current framebuffer to the output without any changes
 			VertexShader = PostProcessVS; PixelShader = PS_HandleStateSetup; 
+		}
+		pass HandleMagnifierPass {
+			// If state is 'Setup': if ShowMagnifier is true, it'll show the pixels around the mousepointer magnified
+			// If state isn't 'Setup', it'll copy the framebuffer.
+			VertexShader = PostProcessVS; PixelShader = PS_HandleMagnification;
 		}
 		// Render copies from temp1 to temp2. temp2 is copied back to temp1 in the next pass.
 		pass HandleStateRenderPass { 

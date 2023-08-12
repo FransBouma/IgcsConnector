@@ -111,6 +111,10 @@ void DepthOfFieldController::writeVariableStateToShader(reshade::api::effect_run
 	setUniformFloat2Variable(runtime, "AlignmentDelta", _xAlignmentDelta, _yAlignmentDelta);
 	setUniformFloatVariable(runtime, "HighlightBoost", _highlightBoostFactor);
 	setUniformFloatVariable(runtime, "HighlightGammaFactor", _highlightGammaFactor);
+	setUniformBoolVariable(runtime, "ShowMagnifier", _magnificationSettings.ShowMagnifier);
+	setUniformFloatVariable(runtime, "MagnificationFactor", _magnificationSettings.MagnificationFactor);
+	setUniformFloat2Variable(runtime, "MagnificationArea", _magnificationSettings.WidthMagnifierArea, _magnificationSettings.HeightMagnifierArea);
+	setUniformFloat2Variable(runtime, "MagnificationLocationCenter", _magnificationSettings.XMagnifierLocation, _magnificationSettings.YMagnifierLocation);
 }
 
 
@@ -135,6 +139,7 @@ void DepthOfFieldController::startSession(reshade::api::effect_runtime* runtime)
 
 	// set uniform variable 'SessionState' to 1 (start)
 	_state = DepthOfFieldControllerState::Start;
+	_renderPaused = false;
 	setUniformIntVariable(runtime, "SessionState", (int)_state);
 
 	// set framecounter to 3 so we wait 3 frames before moving on to 'Setup'
@@ -214,7 +219,7 @@ void DepthOfFieldController::handleRenderStateFrame()
 			{
 				// move camera and set counter and move to next state
 				_blendFactor = 1.0f / (static_cast<float>(_currentFrame) + 2.0f);		// frame start at 0 so +1, and we have to blend the original too, so +1
-				auto& currentFrameData = _cameraSteps[_currentFrame];
+				const auto& currentFrameData = _cameraSteps[_currentFrame];
 				_cameraToolsConnector.moveCameraMultishot(currentFrameData.xDelta, currentFrameData.yDelta, 0.0f, true);
 				_xAlignmentDelta = currentFrameData.xAlignmentDelta;
 				_yAlignmentDelta = currentFrameData.yAlignmentDelta;
@@ -265,24 +270,6 @@ void DepthOfFieldController::handleRenderStateFrame()
 				}
 			}
 			break;
-	}
-}
-
-
-void DepthOfFieldController::createLinearDoFPoints()
-{
-	_cameraSteps.clear();
-// TODO: ADD Angle for rotation
-	bool vertical = _debugBool1;
-	for(int ringNo = 1;ringNo<=_quality;ringNo++)
-	{
-		// for testing, first a linear move like a lightfield.
-		const float stepDelta = (float)ringNo / (float)_quality;
-		const float xDelta = vertical ? 0.0f :_maxBokehSize * stepDelta;
-		const float yDelta = vertical ? _maxBokehSize * stepDelta : 0.0f;
-		const float xAlignmentDelta = stepDelta * -_xFocusDelta;
-		const float yAlignmentDelta = stepDelta * _yFocusDelta;
-		_cameraSteps.push_back({ xDelta, yDelta, vertical ? 0.0f : xAlignmentDelta, vertical? yAlignmentDelta : 0.0f });
 	}
 }
 
@@ -408,10 +395,10 @@ void DepthOfFieldController::drawShape(ImDrawList* drawList, ImVec2 topLeftScree
 	const float maxRadius = (canvasWidthHeight / 2.0f)-5.0f;	// to have some space around the edge
 	float maxBokehRadius = _maxBokehSize / 2.0f;
 	maxBokehRadius = maxBokehRadius < FLT_EPSILON ? 1.0f : maxBokehRadius;
-	const ImColor dotColor = ImColor(ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+	const ImColor dotColor = IM_COL32(255, 255, 255, 255);
 	drawList->AddCircleFilled(ImVec2(x, y), 1.5f, dotColor);	// center
 	const float expandFactor = _blurType == DepthOfFieldBlurType::Circular ? 1.0f : 0.5f;		// linear has nodes on 1 side
-	for(auto& step : _cameraSteps)
+	for(const auto& step : _cameraSteps)
 	{
 		drawList->AddCircleFilled(ImVec2(x + (((step.xDelta * expandFactor) / maxBokehRadius) * maxRadius), y + (((step.yDelta * expandFactor) / maxBokehRadius) * maxRadius)), 1.5f, dotColor);
 	}
@@ -466,3 +453,23 @@ void DepthOfFieldController::setUniformFloat2Variable(reshade::api::effect_runti
 	std::scoped_lock lock(_reshadeStateMutex);
 	_reshadeStateAtStart.setUniformFloat2Variable(runtime, "IgcsDof.fx", uniformName, value1ToWrite, value2ToWrite);
 }
+
+
+#if _DEBUG
+// For debugging purposes only
+void DepthOfFieldController::createLinearDoFPoints()
+{
+	_cameraSteps.clear();
+	bool vertical = _debugBool1;
+	for(int ringNo = 1; ringNo <= _quality; ringNo++)
+	{
+		// for testing, first a linear move like a lightfield.
+		const float stepDelta = (float)ringNo / (float)_quality;
+		const float xDelta = vertical ? 0.0f : _maxBokehSize * stepDelta;
+		const float yDelta = vertical ? _maxBokehSize * stepDelta : 0.0f;
+		const float xAlignmentDelta = stepDelta * -_xFocusDelta;
+		const float yAlignmentDelta = stepDelta * _yFocusDelta;
+		_cameraSteps.push_back({ xDelta, yDelta, vertical ? 0.0f : xAlignmentDelta, vertical ? yAlignmentDelta : 0.0f });
+	}
+}
+#endif

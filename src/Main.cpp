@@ -442,7 +442,7 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 							ImGui::SeparatorText("Focusing");
 							float maxBokehSize = g_depthOfFieldController.getMaxBokehSize();
 							bool changed = ImGui::DragFloat("Max. bokeh size", &maxBokehSize, 0.001f, 0.001f, 10.0f, "%.3f");
-							if(ImGui::IsItemHovered(ImGuiHoveredFlags_Stationary))
+							if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
 							{
 								ImGui::SetTooltip("Use this value to define the maximum bokeh size.");
 							}
@@ -452,10 +452,10 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 							}
 
 							float focusDeltas[2] = { (g_depthOfFieldController.getXFocusDelta()), (g_depthOfFieldController.getYFocusDelta()) };
-							changed = ImGui::DragFloat2("Focus deltas X, Y", focusDeltas, 0.001f, -1.0f, 1.0f, "%.3f");
-							if(ImGui::IsItemHovered(ImGuiHoveredFlags_Stationary))
+							changed = ImGui::DragFloat2("Focus deltas X, Y", focusDeltas, 0.0001f, -1.0f, 1.0f, "%.4f");
+							if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
 							{
-								ImGui::SetTooltip("Use these two values to align the two images on the spot you want to have in focus");
+								ImGui::SetTooltip("Use these two values to align the two images\non the spot you want to have in focus");
 							}
 							if(changed)
 							{
@@ -466,6 +466,27 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 							if(changed)
 							{
 								g_depthOfFieldController.setNumberOfFramesToWaitPerFrame(numberOfFramesToWaitPerFrame);
+							}
+
+							ImGui::SeparatorText("Magnifier");
+							auto& magnifierSettings = g_depthOfFieldController.getMagnifierSettings();
+							ImGui::Checkbox("Show magnifier", &magnifierSettings.ShowMagnifier);
+							ImGui::DragFloat("Magnification factor", &magnifierSettings.MagnificationFactor, 1.0f, 1.0f, 10.0f, "%.0f");
+
+							float tempValues[2] = { magnifierSettings.WidthMagnifierArea, magnifierSettings.HeightMagnifierArea };
+							changed = ImGui::DragFloat2("Magnifier area size", tempValues, 0.001f, 0.01f, 1.0f);
+							if(changed)
+							{
+								magnifierSettings.WidthMagnifierArea = tempValues[0];
+								magnifierSettings.HeightMagnifierArea = tempValues[1];
+							}
+							tempValues[0] = magnifierSettings.XMagnifierLocation;
+							tempValues[1] = magnifierSettings.YMagnifierLocation;
+							changed = ImGui::DragFloat2("Magnifier location", tempValues, 0.001f, 0.01f, 1.0f);
+							if(changed)
+							{
+								magnifierSettings.XMagnifierLocation = tempValues[0];
+								magnifierSettings.YMagnifierLocation = tempValues[1];
 							}
 
 							ImGui::SeparatorText("Bokeh setup");
@@ -541,7 +562,7 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 							{
 								g_depthOfFieldController.endSession(runtime);
 							}
-
+#if _DEBUG
 							if(ImGui::CollapsingHeader("Debug"))
 							{
 								float debugVal1 = g_depthOfFieldController.getDebugVal1();
@@ -569,6 +590,7 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 									g_depthOfFieldController.setDebugBool2(debugBool2);
 								}
 							}
+#endif
 							ImGui::PopItemWidth();
 						}
 						else

@@ -56,6 +56,15 @@ class DepthOfFieldController
 		float yAlignmentDelta = 0.0f;
 	};
 
+	struct MagnifierSettings
+	{
+		bool ShowMagnifier = false;
+		float MagnificationFactor = 2.0f;
+		float XMagnifierLocation = 0.5f;
+		float YMagnifierLocation = 0.5f;
+		float WidthMagnifierArea = 0.19f;
+		float HeightMagnifierArea = 0.1f;
+	};
 
 public:
 	DepthOfFieldController(CameraToolsConnector& connector);
@@ -86,12 +95,38 @@ public:
 	/// </summary>
 	/// <param name="runtime"></param>
 	void reshadeBeginEffectsCalled(reshade::api::effect_runtime* runtime);
+	/// <summary>
+	/// Starts the render of the final image
+	/// </summary>
+	/// <param name="runtime"></param>
 	void startRender(reshade::api::effect_runtime* runtime);
+	/// <summary>
+	/// Migrates the grabbed reshade state to the new one passed in. Occurs when the user reloads the reshade preset or the viewport got resized
+	/// </summary>
+	/// <param name="runtime">Can be empty, in which case it's ignored</param>
 	void migrateReshadeState(reshade::api::effect_runtime* runtime);
-	void createLinearDoFPoints();
+	/// <summary>
+	/// Create a set of circular points using nested circles, which are used to build the camera steps array
+	/// </summary>
 	void createCircleDoFPoints();
+	/// <summary>
+	/// Renders the overlay which contains the progress bar
+	/// </summary>
 	void renderOverlay();
+	/// <summary>
+	/// Draws the created camera steps as points on the drawList specified
+	/// </summary>
+	/// <param name="drawList"></param>
+	/// <param name="topLeftScreenCoord"></param>
+	/// <param name="canvasWidthHeight"></param>
+	void drawShape(ImDrawList* drawList, ImVec2 topLeftScreenCoord, float canvasWidthHeight);
+	/// <summary>
+	/// Writes a set of member variables to the shader's uniforms using the reshade runtime specified, so the shader can use the values.
+	/// </summary>
+	/// <param name="runtime"></param>
+	void writeVariableStateToShader(reshade::api::effect_runtime* runtime);
 
+	// setters
 	void setNumberOfFramesToWaitPerFrame(int newValue) { _numberOfFramesToWaitPerFrame = newValue; }
 	void setQuality(int newValue) { _quality = newValue; }
 	void setNumberOfPointsInnermostRing(int newValue) { _numberOfPointsInnermostRing = newValue; }
@@ -100,6 +135,8 @@ public:
 	void setHighlightGammaFactor(float newValue) { _highlightGammaFactor = IGCS::Utils::clampEx(newValue, 0.1f, 5.0f); }
 	void setRenderPaused(bool newValue) { _renderPaused = newValue; }
 	void setRenderOrder(DepthOfFieldRenderOrder newValue) { _renderOrder = newValue; }
+
+	// getters
 	DepthOfFieldRenderOrder getRenderOrder() { return _renderOrder; }
 	float getMaxBokehSize() { return _maxBokehSize; }
 	float getXFocusDelta() { return _xFocusDelta; }
@@ -111,10 +148,12 @@ public:
 	int getNumberOfPointsInnermostRing() { return _numberOfPointsInnermostRing; }
 	int getNumberOfFramesToWaitPerFrame() { return _numberOfFramesToWaitPerFrame; }
 	bool getRenderPaused() { return _renderPaused; }
+	int getTotalNumberOfStepsToTake() { return _cameraSteps.size(); }
+	MagnifierSettings& getMagnifierSettings() { return _magnificationSettings; }		// this is a bit dirty...
 
-	void drawShape(ImDrawList* drawList, ImVec2 topLeftScreenCoord, float canvasWidthHeight);
-	void writeVariableStateToShader(reshade::api::effect_runtime* runtime);
-
+#if _DEBUG
+	void createLinearDoFPoints();
+#endif
 	void setDebugBool1(bool newVal) { _debugBool1 = newVal; }
 	void setDebugBool2(bool newVal) { _debugBool2 = newVal; }
 	void setDebugVal1(float newVal) { _debugVal1 = newVal; }
@@ -123,7 +162,6 @@ public:
 	bool getDebugBool2() { return _debugBool2; }
 	float getDebugVal1() { return _debugVal1; }
 	float getDebugVal2() { return _debugVal2; }
-	int getTotalNumberOfStepsToTake() { return _cameraSteps.size(); }
 
 private:
 	void setUniformIntVariable(reshade::api::effect_runtime* runtime, const std::string& uniformName, int valueToWrite);
@@ -142,20 +180,20 @@ private:
 
 
 // TODO Store these values as defaults PER GAME exe in an ini file? 
-
-
-
-	float _maxBokehSize = 0.25;		// value 'B', so the max diameter of a circle we're going to walk. In world units of the engine
-	float _xFocusDelta = 0.0f;		// value 'A', the relationship between stepping over maxBokehSize and the movement of the pixels that have to be in focus. X specific
-	float _yFocusDelta = 0.0f;		// value 'A', the relationship between stepping over maxBokehSize and the movement of the pixels that have to be in focus. X specific
-	bool _blendFrame = false;		// if true, the shader will blend the curreent frame if state is Render
-	float _blendFactor = 0.0f;		// for the shader, the blend factor to use when blending a frame
-	float _xAlignmentDelta = 0.0f;	// for the shader, the alignment x delta to use
-	float _yAlignmentDelta = 0.0f;	// for the shader, the alignment y delta to use
+	float _maxBokehSize = 0.25;			// value 'B', so the max diameter of a circle we're going to walk. In world units of the engine
+	float _xFocusDelta = 0.0f;			// value 'A', the relationship between stepping over maxBokehSize and the movement of the pixels that have to be in focus. X specific
+	float _yFocusDelta = 0.0f;			// value 'A', the relationship between stepping over maxBokehSize and the movement of the pixels that have to be in focus. X specific
+	bool _blendFrame = false;			// if true, the shader will blend the curreent frame if state is Render
+	float _blendFactor = 0.0f;			// for the shader, the blend factor to use when blending a frame
+	float _xAlignmentDelta = 0.0f;		// for the shader, the alignment x delta to use
+	float _yAlignmentDelta = 0.0f;		// for the shader, the alignment y delta to use
 	float _highlightBoostFactor = 0.9f;
 	float _highlightGammaFactor = 2.2f;
-	int _onPresentWorkCounter = 0;					// if 0, reshadeBeginEffectsCalled will call onPresentWorkFunc (if set), otherwise this counter is decreased.
+	MagnifierSettings _magnificationSettings;
 
+	int _onPresentWorkCounter = 0;		// if 0, reshadeBeginEffectsCalled will call onPresentWorkFunc (if set), otherwise this counter is decreased.
+
+	DepthOfFieldBlurType _blurType = DepthOfFieldBlurType::Circular;
 	DepthOfFieldRenderFrameState _renderFrameState = DepthOfFieldRenderFrameState::Off;
 	int _frameWaitCounter = 0;		// When 0 move the render state to the next state, otherwise decrease
 	int _currentFrame = -1;		// < 0: no frame, >= 0 the current frame, 0 based.
@@ -167,14 +205,12 @@ private:
 	int _numberOfPointsInnermostRing;
 	DepthOfFieldRenderOrder _renderOrder = DepthOfFieldRenderOrder::InnerRingToOuterRing;
 
+	ReshadeStateSnapshot _reshadeStateAtStart;
+	std::mutex _reshadeStateMutex;
+
 	float _debugVal1 = 0.0f;
 	float _debugVal2 = 0.0f;
 	bool _debugBool1 = false;
 	bool _debugBool2 = false;
-	DepthOfFieldBlurType _blurType = DepthOfFieldBlurType::Circular;
-
-	ReshadeStateSnapshot _reshadeStateAtStart;
-	std::mutex _reshadeStateMutex;
-
 };
 
