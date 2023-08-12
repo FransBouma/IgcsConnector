@@ -535,7 +535,9 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 							switch(blurType)
 							{
 								case (int)DepthOfFieldBlurType::Linear:
+#if _DEBUG
 									g_depthOfFieldController.createLinearDoFPoints();
+#endif
 									break;
 								case (int)DepthOfFieldBlurType::Circular:
 									g_depthOfFieldController.createCircleDoFPoints();

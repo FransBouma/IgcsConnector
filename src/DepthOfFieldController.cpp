@@ -332,8 +332,10 @@ void DepthOfFieldController::startRender(reshade::api::effect_runtime* runtime)
 	// calculate the positions of the camera
 	switch(_blurType)
 	{
-		case DepthOfFieldBlurType::Linear: 
+		case DepthOfFieldBlurType::Linear:
+#if _DEBUG
 			createLinearDoFPoints();
+#endif
 			break;
 		case DepthOfFieldBlurType::Circular: 
 			createCircleDoFPoints();
