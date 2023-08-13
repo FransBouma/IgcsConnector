@@ -44,6 +44,7 @@
 #include <string>
 
 #include "CameraToolsData.h"
+#include "CDataFile.h"
 #include "DepthOfFieldController.h"
 #include "ScreenshotController.h"
 #include "ScreenshotSettings.h"
@@ -71,6 +72,8 @@ extern "C" __declspec(dllexport) void removeStateSnapshotFromPath(int pathIndex,
 extern "C" __declspec(dllexport) void setReshadeStateInterpolated(int pathIndex, int fromStateIndex, int toStateIndex, float interpolationFactor);
 extern "C" __declspec(dllexport) void setReshadeState(int pathIndex, int stateIndex);
 extern "C" __declspec(dllexport) void updateStateSnapshotOnPath(int pathIndex, int stateIndex);
+
+#define SETTINGS_FILE_NAME "IgcsConnector.ini"
 
 static LPBYTE g_dataFromCameraToolsBuffer = nullptr;		// 8192 bytes buffer
 static CameraToolsConnector g_cameraToolsConnector;
@@ -325,6 +328,29 @@ static void startScreenshotSession(bool isTestRun)
 		break;
 #endif
 	}
+}
+
+
+void loadIniFile()
+{
+	CDataFile iniFile;
+	if(!iniFile.Load(SETTINGS_FILE_NAME))
+	{
+		// not there
+		return;
+	}
+
+	g_depthOfFieldController.loadIniFileData(iniFile);
+}
+
+
+void saveIniFile()
+{
+	CDataFile iniFile;
+	g_depthOfFieldController.saveIniFileData(iniFile);
+
+	iniFile.SetFileName(SETTINGS_FILE_NAME);
+	iniFile.Save();
 }
 
 
@@ -633,6 +659,7 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 					if(ImGui::Button("End session"))
 					{
 						g_depthOfFieldController.endSession(runtime);
+						saveIniFile();
 					}
 					break;
 				case DepthOfFieldControllerState::Cancelling:
@@ -714,6 +741,12 @@ void onReshadeBeginEffects(effect_runtime* runtime, command_list* cmd_list, reso
 }
 
 
+void onReshadeFinishEffects(effect_runtime* runtime, command_list* cmd_list, resource_view rtv, resource_view rtv_srgb)
+{
+	g_depthOfFieldController.reshadeFinishEffectsCalled(runtime);
+}
+
+
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID)
 {
 	switch (fdwReason)
@@ -726,14 +759,17 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID)
 		reshade::register_event<reshade::addon_event::reshade_present>(onReshadePresent);
 		reshade::register_event<reshade::addon_event::reshade_overlay>(onReshadeOverlay);
 		reshade::register_event<reshade::addon_event::reshade_begin_effects>(onReshadeBeginEffects);
+		reshade::register_event<reshade::addon_event::reshade_begin_effects>(onReshadeFinishEffects);
 		reshade::register_event<reshade::addon_event::reshade_reloaded_effects>(onReshadeReloadEffects);
 		reshade::register_overlay(nullptr, &displaySettings);
+		loadIniFile();
 		break;
 	case DLL_PROCESS_DETACH:
 		reshade::unregister_event<reshade::addon_event::reshade_present>(onReshadePresent);
 		reshade::unregister_event<reshade::addon_event::reshade_overlay>(onReshadeOverlay);
 		reshade::unregister_event<reshade::addon_event::reshade_begin_effects>(onReshadeBeginEffects);
 		reshade::unregister_event<reshade::addon_event::reshade_reloaded_effects>(onReshadeReloadEffects);
+		reshade::unregister_event<reshade::addon_event::reshade_begin_effects>(onReshadeFinishEffects);
 		reshade::unregister_overlay(nullptr, &displaySettings);
 		reshade::unregister_addon(hModule);
 		if(nullptr!=g_dataFromCameraToolsBuffer)

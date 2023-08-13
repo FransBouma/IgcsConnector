@@ -55,6 +55,9 @@
     <ClInclude Include="DepthOfFieldController.h">
       <Filter>Include</Filter>
     </ClInclude>
+    <ClInclude Include="CDataFile.h">
+      <Filter>Include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Code">
@@ -102,6 +105,9 @@
       <Filter>Code</Filter>
     </ClCompile>
     <ClCompile Include="DepthOfFieldController.cpp">
+      <Filter>Code</Filter>
+    </ClCompile>
+    <ClCompile Include="CDataFile.cpp">
       <Filter>Code</Filter>
     </ClCompile>
   </ItemGroup>

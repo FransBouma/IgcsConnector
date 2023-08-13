@@ -32,6 +32,7 @@
 /////////////////////////////////////////////////////////////////////////
 
 #pragma once
+
 #include <functional>
 #include <imgui.h>
 #include <mutex>
@@ -39,6 +40,8 @@
 #include "CameraToolsConnector.h"
 #include "ConstantsEnums.h"
 #include <reshade.hpp>
+
+#include "CDataFile.h"
 #include "Utils.h"
 
 #include "ReshadeStateSnapshot.h"
@@ -96,6 +99,11 @@ public:
 	/// <param name="runtime"></param>
 	void reshadeBeginEffectsCalled(reshade::api::effect_runtime* runtime);
 	/// <summary>
+	/// Called when all the reshade effects have been handled and have run.
+	/// </summary>
+	/// <param name="runtime"></param>
+	void reshadeFinishEffectsCalled(reshade::api::effect_runtime* runtime);
+	/// <summary>
 	/// Starts the render of the final image
 	/// </summary>
 	/// <param name="runtime"></param>
@@ -125,6 +133,8 @@ public:
 	/// </summary>
 	/// <param name="runtime"></param>
 	void writeVariableStateToShader(reshade::api::effect_runtime* runtime);
+	void loadIniFileData(CDataFile& iniFile);
+	void saveIniFileData(CDataFile& iniFile);
 
 	// setters
 	void setNumberOfFramesToWaitPerFrame(int newValue) { _numberOfFramesToWaitPerFrame = newValue; }
@@ -168,9 +178,12 @@ private:
 	void setUniformFloatVariable(reshade::api::effect_runtime* runtime, const std::string& uniformName, float valueToWrite);
 	void setUniformBoolVariable(reshade::api::effect_runtime* runtime, const std::string& uniformName, bool valueToWrite);
 	void setUniformFloat2Variable(reshade::api::effect_runtime* runtime, const std::string& uniformName, float value1ToWrite, float value2ToWrite);
+	void loadFloatFromIni(CDataFile& iniFile, const std::string& key, float* toWriteTo);
+	void loadIntFromIni(CDataFile& iniFile, const std::string& key, int* toWriteTo);
 
 	void displayScreenshotSessionStartError(const ScreenshotSessionStartReturnCode sessionStartResult);
 	void handleRenderStateFrame();
+	void handleRenderStatePostFrame();
 
 	CameraToolsConnector& _cameraToolsConnector;
 	DepthOfFieldControllerState _state;

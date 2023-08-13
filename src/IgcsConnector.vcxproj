@@ -165,6 +165,7 @@
     <ClInclude Include="CameraPathData.h" />
     <ClInclude Include="CameraToolsConnector.h" />
     <ClInclude Include="CameraToolsData.h" />
+    <ClInclude Include="CDataFile.h" />
     <ClInclude Include="ConstantsEnums.h" />
     <ClInclude Include="DepthOfFieldController.h" />
     <ClInclude Include="EffectState.h" />
@@ -184,6 +185,7 @@
   <ItemGroup>
     <ClCompile Include="CameraPathData.cpp" />
     <ClCompile Include="CameraToolsConnector.cpp" />
+    <ClCompile Include="CDataFile.cpp" />
     <ClCompile Include="DepthOfFieldController.cpp" />
     <ClCompile Include="EffectState.cpp" />
     <ClCompile Include="fpng.cpp" />

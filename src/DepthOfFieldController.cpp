@@ -38,6 +38,7 @@
 #include "Utils.h"
 #include <random>
 #include <algorithm>
+#include "CDataFile.h"
 
 DepthOfFieldController::DepthOfFieldController(CameraToolsConnector& connector) : _cameraToolsConnector(connector), _state(DepthOfFieldControllerState::Off), _quality(4), _numberOfPointsInnermostRing(3)
 {
@@ -115,6 +116,32 @@ void DepthOfFieldController::writeVariableStateToShader(reshade::api::effect_run
 	setUniformFloatVariable(runtime, "MagnificationFactor", _magnificationSettings.MagnificationFactor);
 	setUniformFloat2Variable(runtime, "MagnificationArea", _magnificationSettings.WidthMagnifierArea, _magnificationSettings.HeightMagnifierArea);
 	setUniformFloat2Variable(runtime, "MagnificationLocationCenter", _magnificationSettings.XMagnifierLocation, _magnificationSettings.YMagnifierLocation);
+}
+
+
+void DepthOfFieldController::loadIniFileData(CDataFile& iniFile)
+{
+	loadFloatFromIni(iniFile, "MaxBokehSize", &_maxBokehSize);
+	loadFloatFromIni(iniFile, "HighlightBoostFactor", &_highlightBoostFactor);
+	loadFloatFromIni(iniFile, "HighlightGammaFactor", &_highlightGammaFactor);
+	loadFloatFromIni(iniFile, "MagnificationAreaWidth", &_magnificationSettings.WidthMagnifierArea);
+	loadFloatFromIni(iniFile, "MagnificationAreaHeight", &_magnificationSettings.HeightMagnifierArea);
+	loadIntFromIni(iniFile, "Quality", &_quality);
+	loadIntFromIni(iniFile, "NumberOfPointsInnermostRing", &_numberOfPointsInnermostRing);
+	loadIntFromIni(iniFile, "NumberOfFramesToWaitPerFrame", &_numberOfFramesToWaitPerFrame);
+}
+
+
+void DepthOfFieldController::saveIniFileData(CDataFile& iniFile)
+{
+	iniFile.SetFloat("MaxBokehSize", _maxBokehSize, "", "DepthOfField");
+	iniFile.SetFloat("HighlightBoostFactor", _highlightBoostFactor, "", "DepthOfField");
+	iniFile.SetFloat("HighlightGammaFactor", _highlightGammaFactor, "", "DepthOfField");
+	iniFile.SetFloat("MagnificationAreaWidth", _magnificationSettings.WidthMagnifierArea, "", "DepthOfField");
+	iniFile.SetFloat("MagnificationAreaHeight", _magnificationSettings.HeightMagnifierArea, "", "DepthOfField");
+	iniFile.SetInt("Quality", _quality, "", "DepthOfField");
+	iniFile.SetInt("NumberOfPointsInnermostRing", _numberOfPointsInnermostRing, "", "DepthOfField");
+	iniFile.SetInt("NumberOfFramesToWaitPerFrame", _numberOfFramesToWaitPerFrame, "", "DepthOfField");
 }
 
 
@@ -203,6 +230,20 @@ void DepthOfFieldController::reshadeBeginEffectsCalled(reshade::api::effect_runt
 }
 
 
+void DepthOfFieldController::reshadeFinishEffectsCalled(reshade::api::effect_runtime* runtime)
+{
+	if(nullptr == runtime || !_cameraToolsConnector.cameraToolsConnected())
+	{
+		return;
+	}
+
+	if(DepthOfFieldControllerState::Rendering == _state)
+	{
+		handleRenderStatePostFrame();
+	}
+}
+
+
 void DepthOfFieldController::handleRenderStateFrame()
 {
 	if(_state!=DepthOfFieldControllerState::Rendering)
@@ -233,8 +274,14 @@ void DepthOfFieldController::handleRenderStateFrame()
 				if(_frameWaitCounter <= 0)
 				{
 					_frameWaitCounter = 0;
-					// move to next state
-					_renderFrameState = DepthOfFieldRenderFrameState::FrameBlend;
+					// Ready to blend. As we're currently before the reshade effects are handled but after the frame has been drawn by the engine
+					// we can set blendFrame to true here and the shader will blend the current framebuffer this frame.
+					// This works because after this method, the uniforms are written to the shader, so the shader will pick the new value up
+					// when it's being drawn 
+					_blendFrame = true;
+					// we can set the render state to done now, as it can be handled after the frame has been blended, this frame
+					// Technically the frame isn't done 'yet' but this state is only used here internally so it's ok. 
+					_renderFrameState = DepthOfFieldRenderFrameState::FrameDone;
 				}
 				else
 				{
@@ -242,12 +289,26 @@ void DepthOfFieldController::handleRenderStateFrame()
 				}
 			}
 			break;
-		case DepthOfFieldRenderFrameState::FrameBlend:
-			{
-				// Set blend flag to true and move to next state
-				_blendFrame = true;
-				_renderFrameState = DepthOfFieldRenderFrameState::FrameDone;
-			}
+		case DepthOfFieldRenderFrameState::FrameDone:
+			// is handled in handleRenderStatePostFrame
+			break;
+	}
+}
+
+
+void DepthOfFieldController::handleRenderStatePostFrame()
+{
+	if(_state != DepthOfFieldControllerState::Rendering)
+	{
+		return;
+	}
+
+	switch(_renderFrameState)
+	{
+		case DepthOfFieldRenderFrameState::Off:
+		case DepthOfFieldRenderFrameState::FrameSetup:
+		case DepthOfFieldRenderFrameState::FrameWait:
+			// no-op
 			break;
 		case DepthOfFieldRenderFrameState::FrameDone:
 			{
@@ -260,7 +321,7 @@ void DepthOfFieldController::handleRenderStateFrame()
 						// we're done rendering
 						_renderFrameState = DepthOfFieldRenderFrameState::Off;
 						_state = DepthOfFieldControllerState::Done;
-						reshade::log_message(reshade::log_level::info, "Done with dof session");
+						reshade::log_message(reshade::log_level::info, "Dof render session completed");
 					}
 					else
 					{
@@ -341,7 +402,7 @@ void DepthOfFieldController::startRender(reshade::api::effect_runtime* runtime)
 			createCircleDoFPoints();
 			break;
 	}
-	reshade::log_message(reshade::log_level::info, "Start of dof session");
+	reshade::log_message(reshade::log_level::info, "Dof render session started");
 
 	// set initial shader start state
 	_blendFactor = 0.0f;
@@ -454,6 +515,34 @@ void DepthOfFieldController::setUniformFloat2Variable(reshade::api::effect_runti
 {
 	std::scoped_lock lock(_reshadeStateMutex);
 	_reshadeStateAtStart.setUniformFloat2Variable(runtime, "IgcsDof.fx", uniformName, value1ToWrite, value2ToWrite);
+}
+
+
+void DepthOfFieldController::loadFloatFromIni(CDataFile& iniFile, const std::string& key, float* toWriteTo)
+{
+	if(nullptr == toWriteTo)
+	{
+		return;
+	}
+	const float value = iniFile.GetFloat(key, "DepthOfField");
+	if(value != FLT_MIN)
+	{
+		*toWriteTo = value;
+	}
+}
+
+
+void DepthOfFieldController::loadIntFromIni(CDataFile& iniFile, const std::string& key, int* toWriteTo)
+{
+	if(nullptr == toWriteTo)
+	{
+		return;
+	}
+	const float value = iniFile.GetInt(key, "DepthOfField");
+	if(value != INT_MIN)
+	{
+		*toWriteTo = value;
+	}
 }
 
 
