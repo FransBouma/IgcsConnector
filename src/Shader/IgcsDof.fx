@@ -239,10 +239,14 @@ namespace IgcsDOF
 		{
 			if(BlendFrame)
 			{
-				float4 currentFragment = tex2Dlod(ReShade::BackBuffer, float4(texcoord+AlignmentDelta, 0, 1.0f));
+				float2 texCoordToReadFrom = texcoord+AlignmentDelta;
+				float4 currentFragment = tex2Dlod(ReShade::BackBuffer, float4(texCoordToReadFrom, 0.0f, 1.0f));
 				currentFragment.rgb = AccentuateWhites(currentFragment.rgb);
-				float4 tempResultFragment = tex2Dlod(SamplerBlendTempResult1, float4(texcoord, 0, 1.0f));
-				fragment = lerp(tempResultFragment, currentFragment, BlendFactor); 
+				float4 tempResultFragment = tex2Dlod(SamplerBlendTempResult1, float4(texcoord, 0.0f, 1.0f));
+				// if the read was out of bounds, we simply use the temp result as the source has no new info to blend with. This avoids
+				// edge bleed of in-focus elements towards the edges of the image.
+				fragment = lerp(tempResultFragment, currentFragment, 
+							    (texCoordToReadFrom.x < 0.0f || texCoordToReadFrom.x>1.0f || texCoordToReadFrom.y < 0.0f || texCoordToReadFrom.y>1.0f) ? 0.0f : BlendFactor); 
 			}
 			else
 			{
