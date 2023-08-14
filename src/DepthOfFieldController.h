@@ -182,9 +182,19 @@ private:
 	void loadIntFromIni(CDataFile& iniFile, const std::string& key, int* toWriteTo);
 
 	void displayScreenshotSessionStartError(const ScreenshotSessionStartReturnCode sessionStartResult);
-	void handleRenderStateFrame();
-	void handleRenderStatePostFrame();
-
+	/// <summary>
+	/// Method called after the game has rendered a frame but before reshade will render the reshade effects (and thus our shader)
+	/// </summary>
+	void handlePresentBeforeReshadeEffects();
+	/// <summary>
+	/// Method called after the game has rendered a frame and after reshade has rendered the reshade effects (and thus our shader)
+	/// </summary>
+	void handlePresentAfterReshadeEffects();
+	/// <summary>
+	/// Method which will setup the frame for blending, moving the camera, configuring the shader.
+	/// </summary>
+	void performRenderFrameSetupWork();
+	
 	CameraToolsConnector& _cameraToolsConnector;
 	DepthOfFieldControllerState _state;
 	std::vector<CameraLocation> _cameraSteps;

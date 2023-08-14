@@ -69,9 +69,9 @@ enum class DepthOfFieldControllerState : int
 enum class DepthOfFieldRenderFrameState : int
 {
 	Off,			// no work
-	FrameSetup,		// Move camera
-	FrameWait,		// Wait after moving camera
-	FrameDone,		// check if we're done with the render, if not, go to setup, if we do, move general state to done.
+	Start,			// start state of the whole process. 
+	FrameWait,		// Waiting for the camera to have moved after setup. This waiting is done with a counter
+	FrameBlending,	// Currently in the blending operation. 
 };
 
 

@@ -220,7 +220,7 @@ void DepthOfFieldController::reshadeBeginEffectsCalled(reshade::api::effect_runt
 
 	if(DepthOfFieldControllerState::Rendering== _state)
 	{
-		handleRenderStateFrame();
+		handlePresentBeforeReshadeEffects();
 	}
 
 	// Then make sure the shader knows our changed data...
@@ -239,12 +239,26 @@ void DepthOfFieldController::reshadeFinishEffectsCalled(reshade::api::effect_run
 
 	if(DepthOfFieldControllerState::Rendering == _state)
 	{
-		handleRenderStatePostFrame();
+		handlePresentAfterReshadeEffects();
 	}
 }
 
 
-void DepthOfFieldController::handleRenderStateFrame()
+void DepthOfFieldController::performRenderFrameSetupWork()
+{
+	// move camera and set counter and move to next state
+	_blendFactor = 1.0f / (static_cast<float>(_currentFrame) + 2.0f);		// frame start at 0 so +1, and we have to blend the original too, so +1
+	const auto& currentFrameData = _cameraSteps[_currentFrame];
+	_cameraToolsConnector.moveCameraMultishot(currentFrameData.xDelta, currentFrameData.yDelta, 0.0f, true);
+	_xAlignmentDelta = currentFrameData.xAlignmentDelta;
+	_yAlignmentDelta = currentFrameData.yAlignmentDelta;
+	_frameWaitCounter = _numberOfFramesToWaitPerFrame;
+	// Set the framestate to wait so the counter will take effect.
+	_renderFrameState = DepthOfFieldRenderFrameState::FrameWait;
+}
+
+
+void DepthOfFieldController::handlePresentBeforeReshadeEffects()
 {
 	if(_state!=DepthOfFieldControllerState::Rendering)
 	{
@@ -254,19 +268,12 @@ void DepthOfFieldController::handleRenderStateFrame()
 	switch(_renderFrameState)
 	{
 		case DepthOfFieldRenderFrameState::Off:
+		case DepthOfFieldRenderFrameState::FrameBlending:
 			// no-op
 			break;
-		case DepthOfFieldRenderFrameState::FrameSetup:
-			{
-				// move camera and set counter and move to next state
-				_blendFactor = 1.0f / (static_cast<float>(_currentFrame) + 2.0f);		// frame start at 0 so +1, and we have to blend the original too, so +1
-				const auto& currentFrameData = _cameraSteps[_currentFrame];
-				_cameraToolsConnector.moveCameraMultishot(currentFrameData.xDelta, currentFrameData.yDelta, 0.0f, true);
-				_xAlignmentDelta = currentFrameData.xAlignmentDelta;
-				_yAlignmentDelta = currentFrameData.yAlignmentDelta;
-				_frameWaitCounter = _numberOfFramesToWaitPerFrame;
-				_renderFrameState = DepthOfFieldRenderFrameState::FrameWait;
-			}
+		case DepthOfFieldRenderFrameState::Start:
+			// start state of the whole process. Only arriving here once per render session.
+			performRenderFrameSetupWork();
 			break;
 		case DepthOfFieldRenderFrameState::FrameWait:
 			{
@@ -279,9 +286,8 @@ void DepthOfFieldController::handleRenderStateFrame()
 					// This works because after this method, the uniforms are written to the shader, so the shader will pick the new value up
 					// when it's being drawn 
 					_blendFrame = true;
-					// we can set the render state to done now, as it can be handled after the frame has been blended, this frame
-					// Technically the frame isn't done 'yet' but this state is only used here internally so it's ok. 
-					_renderFrameState = DepthOfFieldRenderFrameState::FrameDone;
+					// Setting the state to blending as we're blending after this method. The handling of this event is done in handlePresentAfterReshadeEffects
+					_renderFrameState = DepthOfFieldRenderFrameState::FrameBlending;
 				}
 				else
 				{
@@ -289,14 +295,11 @@ void DepthOfFieldController::handleRenderStateFrame()
 				}
 			}
 			break;
-		case DepthOfFieldRenderFrameState::FrameDone:
-			// is handled in handleRenderStatePostFrame
-			break;
 	}
 }
 
 
-void DepthOfFieldController::handleRenderStatePostFrame()
+void DepthOfFieldController::handlePresentAfterReshadeEffects()
 {
 	if(_state != DepthOfFieldControllerState::Rendering)
 	{
@@ -306,12 +309,15 @@ void DepthOfFieldController::handleRenderStatePostFrame()
 	switch(_renderFrameState)
 	{
 		case DepthOfFieldRenderFrameState::Off:
-		case DepthOfFieldRenderFrameState::FrameSetup:
+		case DepthOfFieldRenderFrameState::Start:
 		case DepthOfFieldRenderFrameState::FrameWait:
 			// no-op
 			break;
-		case DepthOfFieldRenderFrameState::FrameDone:
+		case DepthOfFieldRenderFrameState::FrameBlending:
 			{
+				// Blending work has taken place, we're now done with that as the shader has run. We switch it off by resetting the variable.
+				// This variable is written to the shader at the end of the handler called before the reshade effects will be rendered, so
+				// it will take effect then. (the shader isn't run before that point so it's ok).
 				_blendFrame = false;
 				if(!_renderPaused)
 				{
@@ -326,7 +332,7 @@ void DepthOfFieldController::handleRenderStatePostFrame()
 					else
 					{
 						// back to setup for the next frame
-						_renderFrameState = DepthOfFieldRenderFrameState::FrameSetup;
+						performRenderFrameSetupWork();
 					}
 				}
 			}
@@ -408,7 +414,7 @@ void DepthOfFieldController::startRender(reshade::api::effect_runtime* runtime)
 	_blendFactor = 0.0f;
 	_currentFrame = 0;
 	_numberOfFramesToRender = _cameraSteps.size();
-	_renderFrameState = DepthOfFieldRenderFrameState::FrameSetup;
+	_renderFrameState = DepthOfFieldRenderFrameState::Start;
 	_state = DepthOfFieldControllerState::Rendering;
 }
 
