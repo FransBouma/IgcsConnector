@@ -189,7 +189,7 @@ namespace IgcsDOF
 	{
 		if(SessionState==1)
 		{
-			float4 currentFragment = float4(tex2Dlod(ReShade::BackBuffer, float4(texcoord, 0, 0)).rgb, 1.0f);
+			float4 currentFragment = float4(tex2Dlod(ReShade::BackBuffer, float4(texcoord, 0.0f, 0.0f)).rgb, 1.0f);
 			fragment0 = currentFragment;
 			fragment1 = currentFragment;
 			fragment1.rgb = AccentuateWhites(currentFragment.rgb);
@@ -218,7 +218,7 @@ namespace IgcsDOF
 
 	void PS_HandleMagnification(float4 vpos : SV_Position, float2 texcoord : TEXCOORD, out float4 fragment : SV_Target0)
 	{
-		fragment = tex2Dlod(ReShade::BackBuffer, float4(texcoord, 0, 0));
+		fragment = tex2Dlod(ReShade::BackBuffer, float4(texcoord, 0.0f, 0.0f));
 		if(SessionState==2 && ShowMagnifier)
 		{
 			float2 areaTopLeft = MagnificationLocationCenter - (MagnificationArea / 2.0f);
@@ -227,7 +227,7 @@ namespace IgcsDOF
 			{
 				// inside magnify area
 				float2 sourceCoord = ((texcoord - MagnificationLocationCenter) / MagnificationFactor) + MagnificationLocationCenter;
-				fragment = tex2Dlod(BackBufferPoint, float4(sourceCoord, 0, 0));
+				fragment = tex2Dlod(BackBufferPoint, float4(sourceCoord, 0.0f, 0.0f));
 			}
 		}
 	}	
@@ -240,9 +240,9 @@ namespace IgcsDOF
 			if(BlendFrame)
 			{
 				float2 texCoordToReadFrom = texcoord+AlignmentDelta;
-				float4 currentFragment = tex2Dlod(ReShade::BackBuffer, float4(texCoordToReadFrom, 0.0f, 1.0f));
+				float4 currentFragment = tex2Dlod(ReShade::BackBuffer, float4(texCoordToReadFrom, 0.0f, 0.0f));
 				currentFragment.rgb = AccentuateWhites(currentFragment.rgb);
-				float4 tempResultFragment = tex2Dlod(SamplerBlendTempResult1, float4(texcoord, 0.0f, 1.0f));
+				float4 tempResultFragment = tex2Dlod(SamplerBlendTempResult1, float4(texcoord, 0.0f, 0.0f));
 				// if the read was out of bounds, we simply use the temp result as the source has no new info to blend with. This avoids
 				// edge bleed of in-focus elements towards the edges of the image.
 				fragment = lerp(tempResultFragment, currentFragment, 
@@ -250,7 +250,7 @@ namespace IgcsDOF
 			}
 			else
 			{
-				fragment = tex2Dlod(SamplerBlendTempResult1, float4(texcoord, 0, 1.0f));
+				fragment = tex2Dlod(SamplerBlendTempResult1, float4(texcoord, 0.0, 0.0f));
 			}
 		}
 		else
@@ -264,7 +264,7 @@ namespace IgcsDOF
 	{
 		if(SessionState==3)
 		{
-			fragment = tex2Dlod(SamplerBlendTempResult2, float4(texcoord, 0, 1.0f));
+			fragment = tex2Dlod(SamplerBlendTempResult2, float4(texcoord, 0.0f, 0.0f));
 		}
 		else
 		{
@@ -277,7 +277,7 @@ namespace IgcsDOF
 	{
 		if(SessionState==3 || SessionState==4)
 		{
-			fragment = tex2Dlod(SamplerBlendTempResult1, float4(texcoord, 0, 1.0f));
+			fragment = tex2Dlod(SamplerBlendTempResult1, float4(texcoord, 0.0f, 0.0f));
 			// doing a tent filter here will also slightly blur the in-focus areas so we can't do that without calculating CoC's and asking 
 			// the user for focus points...
 			fragment.rgb = CorrectForWhiteAccentuation(fragment.rgb);
