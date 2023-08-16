@@ -537,7 +537,6 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 							{
 								g_depthOfFieldController.setNumberOfPointsInnermostRing(numberOfPointsInnermostCircle);
 							}
-
 							int renderOrder = (int)g_depthOfFieldController.getRenderOrder();
 							changed = ImGui::Combo("Render order", &renderOrder, "Inner to outer circle\0Outer to inner circle\0Random\0\0");
 							if(changed)
@@ -558,18 +557,6 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 								g_depthOfFieldController.setHighlightGammaFactor(highlightGammaFactor);
 							}
 
-							switch(blurType)
-							{
-								case (int)DepthOfFieldBlurType::Linear:
-#if _DEBUG
-									g_depthOfFieldController.createLinearDoFPoints();
-#endif
-									break;
-								case (int)DepthOfFieldBlurType::Circular:
-									g_depthOfFieldController.createCircleDoFPoints();
-									break;
-							}
-
 							// show the shape canvas
 							ImGui::Text("Blur shape. Number of shots to take: %d", g_depthOfFieldController.getTotalNumberOfStepsToTake());
 							ImGui::InvisibleButton("canvas", ImVec2(250.0f, 250.0f), ImGuiButtonFlags_None);
@@ -581,6 +568,16 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 							g_depthOfFieldController.drawShape(drawList, topLeftCoords, 250.0f);
 
 							ImGui::Separator();
+							bool showProgressBarAsOverlay = g_depthOfFieldController.getShowProgressBarAsOverlay();
+							changed = ImGui::Checkbox("Show progress bar as overlay", &showProgressBarAsOverlay);
+							if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+							{
+								ImGui::SetTooltip("If checked, the progress bar will show in the top left corner\notherwise the progress bar will be shown here in the Reshade overlay.");
+							}
+							if(changed)
+							{
+								g_depthOfFieldController.setShowProgressBarAsOverlay(showProgressBarAsOverlay);
+							}
 							if(ImGui::Button("Start render"))
 							{
 								g_depthOfFieldController.startRender(runtime);
@@ -629,6 +626,11 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 					break;
 				case DepthOfFieldControllerState::Rendering:
 					{
+						if(!g_depthOfFieldController.getShowProgressBarAsOverlay())
+						{
+							g_depthOfFieldController.renderProgressBar();
+						}
+
 						const bool isPaused = g_depthOfFieldController.getRenderPaused();
 						if(isPaused)
 						{

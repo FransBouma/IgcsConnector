@@ -114,9 +114,9 @@ public:
 	/// <param name="runtime">Can be empty, in which case it's ignored</param>
 	void migrateReshadeState(reshade::api::effect_runtime* runtime);
 	/// <summary>
-	/// Create a set of circular points using nested circles, which are used to build the camera steps array
+	/// Calculates the set of points in the shape to use
 	/// </summary>
-	void createCircleDoFPoints();
+	void calculateShapePoints();
 	/// <summary>
 	/// Renders the overlay which contains the progress bar
 	/// </summary>
@@ -129,6 +129,10 @@ public:
 	/// <param name="canvasWidthHeight"></param>
 	void drawShape(ImDrawList* drawList, ImVec2 topLeftScreenCoord, float canvasWidthHeight);
 	/// <summary>
+	/// Renders a progress bar at the current ImGui location, which can be in the settings or in an overlay.
+	/// </summary>
+	void renderProgressBar();
+	/// <summary>
 	/// Writes a set of member variables to the shader's uniforms using the reshade runtime specified, so the shader can use the values.
 	/// </summary>
 	/// <param name="runtime"></param>
@@ -138,13 +142,26 @@ public:
 
 	// setters
 	void setNumberOfFramesToWaitPerFrame(int newValue) { _numberOfFramesToWaitPerFrame = newValue; }
-	void setQuality(int newValue) { _quality = newValue; }
-	void setNumberOfPointsInnermostRing(int newValue) { _numberOfPointsInnermostRing = newValue; }
-	void setBlurType(DepthOfFieldBlurType newValue) { _blurType = newValue; }
+	void setQuality(int newValue)
+	{
+		_quality = newValue;
+		calculateShapePoints();
+	}
+	void setNumberOfPointsInnermostRing(int newValue)
+	{
+		_numberOfPointsInnermostRing = newValue;
+		calculateShapePoints();
+	}
+	void setBlurType(DepthOfFieldBlurType newValue)
+	{
+		_blurType = newValue;
+		calculateShapePoints();
+	}
 	void setHighlightBoostFactor(float newValue) { _highlightBoostFactor = IGCS::Utils::clampEx(newValue, 0.0f, 1.0f); }
 	void setHighlightGammaFactor(float newValue) { _highlightGammaFactor = IGCS::Utils::clampEx(newValue, 0.1f, 5.0f); }
 	void setRenderPaused(bool newValue) { _renderPaused = newValue; }
 	void setRenderOrder(DepthOfFieldRenderOrder newValue) { _renderOrder = newValue; }
+	void setShowProgressBarAsOverlay(bool newValue) { _showProgressBarAsOverlay = newValue; }
 
 	// getters
 	DepthOfFieldRenderOrder getRenderOrder() { return _renderOrder; }
@@ -160,10 +177,8 @@ public:
 	bool getRenderPaused() { return _renderPaused; }
 	int getTotalNumberOfStepsToTake() { return _cameraSteps.size(); }
 	MagnifierSettings& getMagnifierSettings() { return _magnificationSettings; }		// this is a bit dirty...
+	bool getShowProgressBarAsOverlay() { return _showProgressBarAsOverlay; }
 
-#if _DEBUG
-	void createLinearDoFPoints();
-#endif
 	void setDebugBool1(bool newVal) { _debugBool1 = newVal; }
 	void setDebugBool2(bool newVal) { _debugBool2 = newVal; }
 	void setDebugVal1(float newVal) { _debugVal1 = newVal; }
@@ -180,6 +195,14 @@ private:
 	void setUniformFloat2Variable(reshade::api::effect_runtime* runtime, const std::string& uniformName, float value1ToWrite, float value2ToWrite);
 	void loadFloatFromIni(CDataFile& iniFile, const std::string& key, float* toWriteTo);
 	void loadIntFromIni(CDataFile& iniFile, const std::string& key, int* toWriteTo);
+	void loadBoolFromIni(CDataFile& iniFile, const std::string& key, bool* toWriteTo, bool defaultValue);
+	/// <summary>
+	/// Create a set of circular points using nested circles, which are used to build the camera steps array
+	/// </summary>
+	void createCircleDoFPoints();
+#if _DEBUG
+	void createLinearDoFPoints();
+#endif
 
 	void displayScreenshotSessionStartError(const ScreenshotSessionStartReturnCode sessionStartResult);
 	/// <summary>
@@ -201,8 +224,6 @@ private:
 
 	std::function<void(reshade::api::effect_runtime*)>  _onPresentWorkFunc = nullptr;			// if set, this function is called when the onPresentWork counter reaches 0.
 
-
-// TODO Store these values as defaults PER GAME exe in an ini file? 
 	float _maxBokehSize = 0.25;			// value 'B', so the max diameter of a circle we're going to walk. In world units of the engine
 	float _xFocusDelta = 0.0f;			// value 'A', the relationship between stepping over maxBokehSize and the movement of the pixels that have to be in focus. X specific
 	float _yFocusDelta = 0.0f;			// value 'A', the relationship between stepping over maxBokehSize and the movement of the pixels that have to be in focus. X specific
@@ -227,6 +248,7 @@ private:
 	int _quality;		// # of circles
 	int _numberOfPointsInnermostRing;
 	DepthOfFieldRenderOrder _renderOrder = DepthOfFieldRenderOrder::InnerRingToOuterRing;
+	bool _showProgressBarAsOverlay = true;
 
 	ReshadeStateSnapshot _reshadeStateAtStart;
 	std::mutex _reshadeStateMutex;

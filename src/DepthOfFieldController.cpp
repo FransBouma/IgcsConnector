@@ -54,6 +54,9 @@ void DepthOfFieldController::setMaxBokehSize(reshade::api::effect_runtime* runti
 	}
 
 	_maxBokehSize = newValue;
+
+	calculateShapePoints();
+
 	// we have to move the camera over the new distance. We move relative to the start position.
 	_cameraToolsConnector.moveCameraMultishot(_maxBokehSize, _maxBokehSize, 0.0f, true);
 	// the value is passed to the shader next present call
@@ -69,6 +72,9 @@ void DepthOfFieldController::setXYFocusDelta(reshade::api::effect_runtime* runti
 	}
 	_xFocusDelta = newValueX;
 	_yFocusDelta = newValueY;
+
+	calculateShapePoints();
+
 	// set the uniform in the shader for blending the new framebuffer so the user has visual feedback
 	setUniformFloat2Variable(runtime, "FocusDelta", _xFocusDelta, _yFocusDelta);
 	// the value is passed to the shader next present call
@@ -129,6 +135,7 @@ void DepthOfFieldController::loadIniFileData(CDataFile& iniFile)
 	loadIntFromIni(iniFile, "Quality", &_quality);
 	loadIntFromIni(iniFile, "NumberOfPointsInnermostRing", &_numberOfPointsInnermostRing);
 	loadIntFromIni(iniFile, "NumberOfFramesToWaitPerFrame", &_numberOfFramesToWaitPerFrame);
+	loadBoolFromIni(iniFile, "ShowProgressBarAsOverlay", &_showProgressBarAsOverlay, true);
 }
 
 
@@ -142,6 +149,7 @@ void DepthOfFieldController::saveIniFileData(CDataFile& iniFile)
 	iniFile.SetInt("Quality", _quality, "", "DepthOfField");
 	iniFile.SetInt("NumberOfPointsInnermostRing", _numberOfPointsInnermostRing, "", "DepthOfField");
 	iniFile.SetInt("NumberOfFramesToWaitPerFrame", _numberOfFramesToWaitPerFrame, "", "DepthOfField");
+	iniFile.SetBool("ShowProgressBarAsOverlay", _showProgressBarAsOverlay, "", "DepthOfField");
 }
 
 
@@ -158,6 +166,8 @@ void DepthOfFieldController::startSession(reshade::api::effect_runtime* runtime)
 		displayScreenshotSessionStartError(sessionStartResult);
 		return;
 	}
+
+	calculateShapePoints();
 
 	{
 		std::scoped_lock lock(_reshadeStateMutex);
@@ -344,9 +354,13 @@ void DepthOfFieldController::handlePresentAfterReshadeEffects()
 void DepthOfFieldController::createCircleDoFPoints()
 {
 	_cameraSteps.clear();
+
 	const float pointsFirstRing = (float)_numberOfPointsInnermostRing;
 	float pointsOnRing = pointsFirstRing;
 	const float maxBokehRadius = _maxBokehSize / 2.0f;
+	const float distanceBetweenRings = (maxBokehRadius * (1.0f / (float)_quality));
+	const float xFocusDelta = _xFocusDelta / 2.0f;
+	const float yFocusDelta = _yFocusDelta / 2.0f;
 	for(int ringNo = 1; ringNo <= _quality; ringNo++)
 	{
 		const float anglePerPoint = 6.28318530717958f / pointsOnRing;
@@ -356,10 +370,11 @@ void DepthOfFieldController::createCircleDoFPoints()
 		{
 			const float sinAngle = sin(angle);
 			const float cosAngle = cos(angle);
-			const float xDelta = (maxBokehRadius * ringDistance) * cosAngle;		// multiply with a value [0.01-1] to get anamorphic bokehs. Controls width
-			const float yDelta = (maxBokehRadius * ringDistance) * sinAngle;		// multiply with a value [0.01-1] to get anamorphic bokehs. Controls height
-			
-			_cameraSteps.push_back({ xDelta, yDelta, ringDistance * cosAngle * -(_xFocusDelta / 2.0f), ringDistance * sinAngle * (_yFocusDelta / 2.0f)});
+			float x = ringDistance * cosAngle;
+			float y = ringDistance * sinAngle;
+			const float xDelta = maxBokehRadius * x;		// multiply with a value [0.01-1] to get anamorphic bokehs. Controls width
+			const float yDelta = maxBokehRadius * y;		// multiply with a value [0.01-1] to get anamorphic bokehs. Controls height
+			_cameraSteps.push_back({ xDelta, yDelta, x * -xFocusDelta, y * yFocusDelta});
 			angle += anglePerPoint;
 		}
 
@@ -383,6 +398,22 @@ void DepthOfFieldController::createCircleDoFPoints()
 }
 
 
+void DepthOfFieldController::calculateShapePoints()
+{
+	switch(_blurType)
+	{
+		case DepthOfFieldBlurType::Linear:
+#if _DEBUG
+			createLinearDoFPoints();
+#endif
+			break;
+		case DepthOfFieldBlurType::Circular: 
+			createCircleDoFPoints();
+			break;
+	}
+}
+
+
 void DepthOfFieldController::startRender(reshade::api::effect_runtime* runtime)
 {
 	if(nullptr == runtime || !_cameraToolsConnector.cameraToolsConnected())
@@ -396,18 +427,6 @@ void DepthOfFieldController::startRender(reshade::api::effect_runtime* runtime)
 		return;
 	}
 
-	// calculate the positions of the camera
-	switch(_blurType)
-	{
-		case DepthOfFieldBlurType::Linear:
-#if _DEBUG
-			createLinearDoFPoints();
-#endif
-			break;
-		case DepthOfFieldBlurType::Circular: 
-			createCircleDoFPoints();
-			break;
-	}
 	reshade::log_message(reshade::log_level::info, "Dof render session started");
 
 	// set initial shader start state
@@ -474,9 +493,20 @@ void DepthOfFieldController::drawShape(ImDrawList* drawList, ImVec2 topLeftScree
 }
 
 
+void DepthOfFieldController::renderProgressBar()
+{
+	const int totalAmountOfSteps = _cameraSteps.size();
+	const float progress = (float)_currentFrame / (float)totalAmountOfSteps;
+	const float progress_saturated = IGCS::Utils::clampEx(progress, 0.0f, 1.0f);
+	char buf[128];
+	sprintf(buf, "%d/%d", (int)(progress_saturated * totalAmountOfSteps), totalAmountOfSteps);
+	ImGui::ProgressBar(progress, ImVec2(0.f, 0.f), buf);
+}
+
+
 void DepthOfFieldController::renderOverlay()
 {
-	if(_state!=DepthOfFieldControllerState::Rendering || _cameraSteps.size()<=0)
+	if(_state!=DepthOfFieldControllerState::Rendering || _cameraSteps.size()<=0 || !_showProgressBarAsOverlay)
 	{
 		return;
 	}
@@ -485,12 +515,7 @@ void DepthOfFieldController::renderOverlay()
 	ImGui::SetNextWindowPos(ImVec2(10, 10));
 	if(ImGui::Begin("IgcsConnector_DoFProgress", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
 	{
-		const int totalAmountOfSteps = _cameraSteps.size();
-		const float progress = (float)_currentFrame / (float)totalAmountOfSteps;
-		const float progress_saturated = IGCS::Utils::clampEx(progress, 0.0f, 1.0f);
-		char buf[128];
-		sprintf(buf, "%d/%d", (int)(progress_saturated * totalAmountOfSteps), totalAmountOfSteps);
-		ImGui::ProgressBar(progress, ImVec2(0.f, 0.f), buf);
+		renderProgressBar();
 	}
 	ImGui::End();
 }
@@ -549,6 +574,22 @@ void DepthOfFieldController::loadIntFromIni(CDataFile& iniFile, const std::strin
 	{
 		*toWriteTo = value;
 	}
+}
+
+void DepthOfFieldController::loadBoolFromIni(CDataFile& iniFile, const std::string& key, bool* toWriteTo, bool defaultValue)
+{
+	if(nullptr==toWriteTo)
+	{
+		return;
+	}
+	// a little inefficient, but getkey is protected
+	const auto boolAsString = iniFile.GetValue(key, "DepthOfField");
+	bool valueToUse = defaultValue;
+	if(boolAsString.length()>0)
+	{
+		valueToUse = iniFile.GetBool(key, "DepthOfField");
+	}
+	*toWriteTo = valueToUse;
 }
 
 
