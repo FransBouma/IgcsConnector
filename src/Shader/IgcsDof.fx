@@ -37,7 +37,7 @@
 
 namespace IgcsDOF
 {
-	#define IGCS_DOF_SHADER_VERSION "v1.0.0"
+	#define IGCS_DOF_SHADER_VERSION "v1.1.0"
 	
 // #define IGCS_DOF_DEBUG	
 	
@@ -158,24 +158,21 @@ namespace IgcsDOF
 #endif
 
 	texture texCDNoise				< source = "monochrome_gaussnoise.png"; > { Width = 512; Height = 512; Format = RGBA8; };
-	texture texOriginalFBCache 		{ Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = RGBA32F; };
-	texture texBlendTempResult1		{ Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = RGBA32F; };
-	texture texBlendTempResult2		{ Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = RGBA32F; };
+	sampler SamplerCDNoise			{ Texture = texCDNoise; MipFilter = POINT; MinFilter = POINT; MagFilter = POINT; AddressU = WRAP; AddressV = WRAP; AddressW = WRAP;};
 	
 	sampler BackBufferPoint			{ Texture = ReShade::BackBufferTex; MagFilter = POINT; MinFilter = POINT; MipFilter = POINT; AddressU = CLAMP; AddressV = CLAMP; AddressW = CLAMP; };
-	sampler SamplerCDNoise			{ Texture = texCDNoise; MipFilter = POINT; MinFilter = POINT; MagFilter = POINT; AddressU = WRAP; AddressV = WRAP; AddressW = WRAP;};
-	sampler SamplerOriginalFBCache	{ Texture = texOriginalFBCache; MagFilter = POINT; MinFilter = POINT; MipFilter = POINT; AddressU = CLAMP; AddressV = CLAMP; AddressW = CLAMP; };
-	sampler SamplerBlendTempResult1	{ Texture = texBlendTempResult1; MagFilter = POINT; MinFilter = POINT; MipFilter = POINT; AddressU = CLAMP; AddressV = CLAMP; AddressW = CLAMP; };
-	sampler SamplerBlendTempResult2	{ Texture = texBlendTempResult2; MagFilter = POINT; MinFilter = POINT; MipFilter = POINT; AddressU = CLAMP; AddressV = CLAMP; AddressW = CLAMP; };
 	
+	texture texBlendAccumulate 		{ Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = RGBA32F; };
+	sampler SamplerBlendAccumulate	{ Texture = texBlendAccumulate; MagFilter = POINT; MinFilter = POINT; MipFilter = POINT; };
+
 	float3 AccentuateWhites(float3 fragment)
 	{
 		// apply small tow to the incoming fragment, so the whitepoint gets slightly lower than max.
 		// De-tonemap color (reinhard). Thanks Marty :) 
 		fragment = pow(abs(fragment), HighlightGammaFactor);
 		return fragment / max((1.001 - (HighlightBoost * fragment)), 0.001);
-	}
-	
+	}	
+
 	
 	float3 CorrectForWhiteAccentuation(float3 fragment)
 	{
@@ -183,16 +180,14 @@ namespace IgcsDOF
 		float3 toReturn = fragment / (1.001 + (HighlightBoost * fragment));
 		return pow(abs(toReturn), 1.0/ HighlightGammaFactor);
 	}
-	
-	
-	void PS_HandleStateStart(float4 vpos : SV_Position, float2 texcoord : TEXCOORD, out float4 fragment0 : SV_Target0, out float4 fragment1 : SV_Target1)
+
+
+	void PS_HandleStateStart(float4 vpos : SV_Position, float2 texcoord : TEXCOORD, out float3 fragment0 : SV_Target0)
 	{
 		if(SessionState==1)
 		{
-			float4 currentFragment = float4(tex2Dlod(ReShade::BackBuffer, float4(texcoord, 0.0f, 0.0f)).rgb, 1.0f);
-			fragment0 = currentFragment;
-			fragment1 = currentFragment;
-			fragment1.rgb = AccentuateWhites(currentFragment.rgb);
+			float3 currentFragment = tex2Dlod(ReShade::BackBuffer, float4(texcoord, 0, 0)).rgb;
+			fragment0 = AccentuateWhites(currentFragment);
 		}
 		else
 		{
@@ -201,24 +196,24 @@ namespace IgcsDOF
 	}
 
 
-	void PS_HandleStateSetup(float4 vpos : SV_Position, float2 texcoord : TEXCOORD, out float4 fragment : SV_Target0)
+	void PS_HandleStateSetup(float4 vpos : SV_Position, float2 texcoord : TEXCOORD, out float3 fragment : SV_Target0)
 	{
 		if(SessionState==2)
 		{
-			float4 currentFragment = tex2Dlod(ReShade::BackBuffer, float4(texcoord.x - FocusDelta.x, texcoord.y + FocusDelta.y, 0, 0));
-			float4 cachedFragment = tex2Dlod(SamplerOriginalFBCache, float4(texcoord, 0, 0));
+			float3 currentFragment = tex2Dlod(ReShade::BackBuffer, float4(texcoord.x - FocusDelta.x, texcoord.y + FocusDelta.y, 0, 0)).rgb;
+			float3 cachedFragment = CorrectForWhiteAccentuation(tex2Dlod(SamplerBlendAccumulate, float4(texcoord, 0, 0)).rgb); //undo cached accentuation
 			fragment = lerp(cachedFragment, currentFragment, SetupAlpha);
 		}
 		else
 		{
-			fragment = tex2Dlod(ReShade::BackBuffer, float4(texcoord, 0, 0));
+			discard;
 		}
 	}
 
 
 	void PS_HandleMagnification(float4 vpos : SV_Position, float2 texcoord : TEXCOORD, out float4 fragment : SV_Target0)
 	{
-		fragment = tex2Dlod(ReShade::BackBuffer, float4(texcoord, 0.0f, 0.0f));
+		fragment = tex2Dlod(ReShade::BackBuffer, float4(texcoord, 0, 0));
 		if(SessionState==2 && ShowMagnifier)
 		{
 			float2 areaTopLeft = MagnificationLocationCenter - (MagnificationArea / 2.0f);
@@ -227,7 +222,7 @@ namespace IgcsDOF
 			{
 				// inside magnify area
 				float2 sourceCoord = ((texcoord - MagnificationLocationCenter) / MagnificationFactor) + MagnificationLocationCenter;
-				fragment = tex2Dlod(BackBufferPoint, float4(sourceCoord, 0.0f, 0.0f));
+				fragment = tex2Dlod(BackBufferPoint, float4(sourceCoord, 0, 0));
 			}
 		}
 	}	
@@ -237,21 +232,18 @@ namespace IgcsDOF
 	{
 		if(SessionState==3)
 		{
+			fragment = 0;
 			if(BlendFrame)
 			{
 				float2 texCoordToReadFrom = texcoord+AlignmentDelta;
-				float4 currentFragment = tex2Dlod(ReShade::BackBuffer, float4(texCoordToReadFrom, 0.0f, 0.0f));
-				currentFragment.rgb = AccentuateWhites(currentFragment.rgb);
-				float4 tempResultFragment = tex2Dlod(SamplerBlendTempResult1, float4(texcoord, 0.0f, 0.0f));
-				// if the read was out of bounds, we simply use the temp result as the source has no new info to blend with. This avoids
-				// edge bleed of in-focus elements towards the edges of the image.
-				fragment = lerp(tempResultFragment, currentFragment, 
-							    (texCoordToReadFrom.x < 0.0f || texCoordToReadFrom.x>1.0f || texCoordToReadFrom.y < 0.0f || texCoordToReadFrom.y>1.0f) ? 0.0f : BlendFactor); 
-			}
-			else
-			{
-				fragment = tex2Dlod(SamplerBlendTempResult1, float4(texcoord, 0.0, 0.0f));
-			}
+				bool isInside = all(saturate(texCoordToReadFrom - texCoordToReadFrom*texCoordToReadFrom));
+				if(isInside)
+				{
+					float3 currentFragment = tex2Dlod(ReShade::BackBuffer, float4(texCoordToReadFrom, 0.0f, 0.0f)).rgb;
+					currentFragment = AccentuateWhites(currentFragment);
+					fragment = float4(currentFragment, BlendFactor);
+				}				
+			}					
 		}
 		else
 		{
@@ -260,27 +252,14 @@ namespace IgcsDOF
 	}
 
 
-	void PS_CopyTempResult2ToTempResult1(float4 vpos : SV_Position, float2 texcoord : TEXCOORD, out float4 fragment : SV_Target0)
-	{
-		if(SessionState==3)
-		{
-			fragment = tex2Dlod(SamplerBlendTempResult2, float4(texcoord, 0.0f, 0.0f));
-		}
-		else
-		{
-			discard;
-		}
-	}
-
-
-	void PS_CopyTempResult1ToFramebuffer(float4 vpos : SV_Position, float2 texcoord : TEXCOORD, out float4 fragment : SV_Target0)
+	void PS_OutputBlendedResultToFrameBuffer(float4 vpos : SV_Position, float2 texcoord : TEXCOORD, out float3 fragment : SV_Target0)
 	{
 		if(SessionState==3 || SessionState==4)
 		{
-			fragment = tex2Dlod(SamplerBlendTempResult1, float4(texcoord, 0.0f, 0.0f));
+			fragment = tex2Dlod(SamplerBlendAccumulate, float4(texcoord, 0, 0.0f)).rgb;
 			// doing a tent filter here will also slightly blur the in-focus areas so we can't do that without calculating CoC's and asking 
 			// the user for focus points...
-			fragment.rgb = CorrectForWhiteAccentuation(fragment.rgb);
+			fragment = CorrectForWhiteAccentuation(fragment);
 			
 			// Dither so no mach bands will appear. From CinematicDOF, contributed by Prod80 to CinematicDOF
 			float2 uv = float2(BUFFER_WIDTH, BUFFER_HEIGHT) / float2( 512.0f, 512.0f ); // create multiplier on texcoord so that we can use 1px size reads on gaussian noise texture (since much smaller than screen)
@@ -290,7 +269,7 @@ namespace IgcsDOF
 		}
 		else
 		{
-			fragment = tex2D(ReShade::BackBuffer, texcoord);
+			discard;
 		}
 	}	
 
@@ -309,14 +288,14 @@ namespace IgcsDOF
 #endif
 	{
 		pass HandleStateStartPass { 
-			// If state is 'Start': writes original framebuffer to both render targets
+			// If state is 'Start': backups original framebuffer to texBlendAccumulate
 			// If state isn't 'Start': it'll discard the pixel.
 			VertexShader = PostProcessVS; PixelShader = PS_HandleStateStart; 
-			RenderTarget0=texOriginalFBCache; RenderTarget1=texBlendTempResult1;
+			RenderTarget0=texBlendAccumulate;
 			ClearRenderTargets= false;
 		}
 		pass HandleStateSetupPass { 
-			// If state is 'Setup': writes original framebuffer blended with the texOriginalFBCache to the output
+			// If state is 'Setup': writes original framebuffer blended with the texBlendAccumulate to the output
 			// If state isn't 'Setup': it'll copy the current framebuffer to the output without any changes
 			VertexShader = PostProcessVS; PixelShader = PS_HandleStateSetup; 
 		}
@@ -324,26 +303,21 @@ namespace IgcsDOF
 			// If state is 'Setup': if ShowMagnifier is true, it'll show the pixels around the mousepointer magnified
 			// If state isn't 'Setup', it'll copy the framebuffer.
 			VertexShader = PostProcessVS; PixelShader = PS_HandleMagnification;
-		}
-		// Render copies from temp1 to temp2. temp2 is copied back to temp1 in the next pass.
+		}		
 		pass HandleStateRenderPass { 
 			// If state is 'Render': 
-			//		if 'BlendFrame' is true, writes original framebuffer blended with the temp result stored in texBlendTempResult1 to
-			//      texBlendTempResult2 (not LDR corrected so keeps the HDR values). 
-			//		if 'BlendFrame' is false, writes texBlendTempResult1 to texBlendTempResult2
-			// If state isn't 'Render' it discards the pixel
-			VertexShader = PostProcessVS; PixelShader = PS_HandleStateRender; RenderTarget=texBlendTempResult2;
+			//		if 'BlendFrame' is true, blends current framebuffer into texBlendAccumulate in HDR space	
+			//      First frame with blend factor 100% will wipe data from the backup phase during Setup		
+			//		if 'BlendFrame' is false or state isn't 'render', discards and leaves texBlendAccumulate in its previous state
+			VertexShader = PostProcessVS; PixelShader = PS_HandleStateRender; RenderTarget=texBlendAccumulate;
+			BlendEnable = true;
+			BlendOp = ADD;
+			SrcBlend = SRCALPHA; DestBlend = INVSRCALPHA;
 		}
-		pass CopyTempResult2ToTempResult1 {
-			// If state is 'Render': performs a simple copy from temp result 2 to temp result 1 as we can't read / write to the same texture in a single pass
-			// so next frame we can read from texBlendTempResult1 again in HandleStateRenderPass
-			// If state isn't 'Render': discards the pixel
-			VertexShader = PostProcessVS; PixelShader = PS_CopyTempResult2ToTempResult1; RenderTarget = texBlendTempResult1;
-		}
-		pass CopyTempResult1ToFramebuffer {
-			// If state is 'Render' or 'Done': copies texBlendTempResult1 to framebuffer
+		pass OutputBlendedResultToFrameBuffer {
+			// If state is 'Render' or 'Done': copies texBlendAccumulate to framebuffer
 			// If state isn't 'Render': copies the current framebuffer to the framebuffer
-			VertexShader = PostProcessVS; PixelShader = PS_CopyTempResult1ToFramebuffer; 
+			VertexShader = PostProcessVS; PixelShader = PS_OutputBlendedResultToFrameBuffer; 
 		}
 	}
 }
