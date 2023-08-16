@@ -537,6 +537,17 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 							{
 								g_depthOfFieldController.setNumberOfPointsInnermostRing(numberOfPointsInnermostCircle);
 							}
+							float anamorphicFactor = g_depthOfFieldController.getAnamorphicFactor();
+							changed = ImGui::DragFloat("Anamorphic factor", &anamorphicFactor, 0.001f, 0.01f, 1.0f);
+							if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+							{
+								ImGui::SetTooltip("At 1.0 it gives perfect round bokehs,\n at a lower value it gives vertical ellipses.");
+							}
+							if(changed)
+							{
+								g_depthOfFieldController.setAnamorphicFactor(anamorphicFactor);
+							}
+
 							int renderOrder = (int)g_depthOfFieldController.getRenderOrder();
 							changed = ImGui::Combo("Render order", &renderOrder, "Inner to outer circle\0Outer to inner circle\0Random\0\0");
 							if(changed)

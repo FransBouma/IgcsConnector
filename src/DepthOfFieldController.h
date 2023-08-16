@@ -157,6 +157,11 @@ public:
 		_blurType = newValue;
 		calculateShapePoints();
 	}
+	void setAnamorphicFactor(float newValue)
+	{
+		_anamorphicFactor = IGCS::Utils::clampEx(newValue, 0.01f, 1.0f);
+		calculateShapePoints();
+	}
 	void setHighlightBoostFactor(float newValue) { _highlightBoostFactor = IGCS::Utils::clampEx(newValue, 0.0f, 1.0f); }
 	void setHighlightGammaFactor(float newValue) { _highlightGammaFactor = IGCS::Utils::clampEx(newValue, 0.1f, 5.0f); }
 	void setRenderPaused(bool newValue) { _renderPaused = newValue; }
@@ -178,6 +183,7 @@ public:
 	int getTotalNumberOfStepsToTake() { return _cameraSteps.size(); }
 	MagnifierSettings& getMagnifierSettings() { return _magnificationSettings; }		// this is a bit dirty...
 	bool getShowProgressBarAsOverlay() { return _showProgressBarAsOverlay; }
+	float getAnamorphicFactor() { return _anamorphicFactor; }
 
 	void setDebugBool1(bool newVal) { _debugBool1 = newVal; }
 	void setDebugBool2(bool newVal) { _debugBool2 = newVal; }
@@ -247,6 +253,7 @@ private:
 	int _numberOfFramesToWaitPerFrame = 1;
 	int _quality;		// # of circles
 	int _numberOfPointsInnermostRing;
+	float _anamorphicFactor = 1.0f;
 	DepthOfFieldRenderOrder _renderOrder = DepthOfFieldRenderOrder::InnerRingToOuterRing;
 	bool _showProgressBarAsOverlay = true;
 

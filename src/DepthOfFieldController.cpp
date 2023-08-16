@@ -132,6 +132,7 @@ void DepthOfFieldController::loadIniFileData(CDataFile& iniFile)
 	loadFloatFromIni(iniFile, "HighlightGammaFactor", &_highlightGammaFactor);
 	loadFloatFromIni(iniFile, "MagnificationAreaWidth", &_magnificationSettings.WidthMagnifierArea);
 	loadFloatFromIni(iniFile, "MagnificationAreaHeight", &_magnificationSettings.HeightMagnifierArea);
+	loadFloatFromIni(iniFile, "AnamorphicFactor", &_anamorphicFactor);
 	loadIntFromIni(iniFile, "Quality", &_quality);
 	loadIntFromIni(iniFile, "NumberOfPointsInnermostRing", &_numberOfPointsInnermostRing);
 	loadIntFromIni(iniFile, "NumberOfFramesToWaitPerFrame", &_numberOfFramesToWaitPerFrame);
@@ -146,6 +147,7 @@ void DepthOfFieldController::saveIniFileData(CDataFile& iniFile)
 	iniFile.SetFloat("HighlightGammaFactor", _highlightGammaFactor, "", "DepthOfField");
 	iniFile.SetFloat("MagnificationAreaWidth", _magnificationSettings.WidthMagnifierArea, "", "DepthOfField");
 	iniFile.SetFloat("MagnificationAreaHeight", _magnificationSettings.HeightMagnifierArea, "", "DepthOfField");
+	iniFile.SetFloat("AnamorphicFactor", _anamorphicFactor, "", "DepthOfField");
 	iniFile.SetInt("Quality", _quality, "", "DepthOfField");
 	iniFile.SetInt("NumberOfPointsInnermostRing", _numberOfPointsInnermostRing, "", "DepthOfField");
 	iniFile.SetInt("NumberOfFramesToWaitPerFrame", _numberOfFramesToWaitPerFrame, "", "DepthOfField");
@@ -355,6 +357,8 @@ void DepthOfFieldController::createCircleDoFPoints()
 {
 	_cameraSteps.clear();
 
+	// to create shapes with vertices: https://www.shadertoy.com/view/ctjcRz
+
 	const float pointsFirstRing = (float)_numberOfPointsInnermostRing;
 	float pointsOnRing = pointsFirstRing;
 	const float maxBokehRadius = _maxBokehSize / 2.0f;
@@ -370,10 +374,10 @@ void DepthOfFieldController::createCircleDoFPoints()
 		{
 			const float sinAngle = sin(angle);
 			const float cosAngle = cos(angle);
-			float x = ringDistance * cosAngle;
+			float x = ringDistance * cosAngle * _anamorphicFactor;
 			float y = ringDistance * sinAngle;
-			const float xDelta = maxBokehRadius * x;		// multiply with a value [0.01-1] to get anamorphic bokehs. Controls width
-			const float yDelta = maxBokehRadius * y;		// multiply with a value [0.01-1] to get anamorphic bokehs. Controls height
+			const float xDelta = maxBokehRadius * x;
+			const float yDelta = maxBokehRadius * y;
 			_cameraSteps.push_back({ xDelta, yDelta, x * -xFocusDelta, y * yFocusDelta});
 			angle += anglePerPoint;
 		}
