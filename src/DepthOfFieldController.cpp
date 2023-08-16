@@ -53,8 +53,16 @@ void DepthOfFieldController::setMaxBokehSize(reshade::api::effect_runtime* runti
 		return;
 	}
 
+	const float oldValue = _maxBokehSize;
 	_maxBokehSize = newValue;
-
+	// recalculate focus x/y
+	if(oldValue > 0.0f)
+	{
+		float delta = _maxBokehSize - oldValue;
+		delta = delta / oldValue;
+		_xFocusDelta += delta * _xFocusDelta;
+		_yFocusDelta += delta * _yFocusDelta;
+	}
 	calculateShapePoints();
 
 	// we have to move the camera over the new distance. We move relative to the start position.
@@ -161,7 +169,6 @@ void DepthOfFieldController::startSession(reshade::api::effect_runtime* runtime)
 	{
 		return;
 	}
-
 	const auto sessionStartResult = _cameraToolsConnector.startScreenshotSession((uint8_t)ScreenshotType::MultiShot);
 	if(sessionStartResult!=ScreenshotSessionStartReturnCode::AllOk)
 	{
