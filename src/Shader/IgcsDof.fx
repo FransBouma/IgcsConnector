@@ -37,7 +37,7 @@
 
 namespace IgcsDOF
 {
-	#define IGCS_DOF_SHADER_VERSION "v1.1.0"
+	#define IGCS_DOF_SHADER_VERSION "v1.2.0"
 	
 // #define IGCS_DOF_DEBUG	
 	
@@ -75,13 +75,13 @@ namespace IgcsDOF
 		hidden=true;
 	> = 2.2;
 	
-	uniform float2 FocusDelta <
+	uniform float FocusDelta <
 		ui_label = "Focus delta";
 		ui_type = "drag";
 		ui_min = -1.0; ui_max = 1.0;
 		ui_step = 0.001;
 		hidden=true;
-	> = float2(0.0, 0.0);
+	> = 0.0f;
 
 	uniform int SessionState < 
 		ui_type = "combo";
@@ -165,11 +165,28 @@ namespace IgcsDOF
 	texture texBlendAccumulate 		{ Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = RGBA32F; };
 	sampler SamplerBlendAccumulate	{ Texture = texBlendAccumulate; MagFilter = POINT; MinFilter = POINT; MipFilter = POINT; };
 
+
+	float3 ConeOverlap(float3 fragment)
+	{
+		float k = 0.4 * 0.33;
+		float2 f = float2(1-2 * k, k);
+		float3x3 m = float3x3(f.xyy, f.yxy, f.yyx);
+		return mul(fragment, m);
+	}
+	
+	float3 ConeOverlapInverse(float3 fragment)
+	{
+		float k = 0.4 * 0.33;
+		float2 f = float2(k-1, k) * rcp(3 * k-1);
+		float3x3 m = float3x3(f.xyy, f.yxy, f.yyx);
+		return mul(fragment, m);
+	}
+
 	float3 AccentuateWhites(float3 fragment)
 	{
 		// apply small tow to the incoming fragment, so the whitepoint gets slightly lower than max.
 		// De-tonemap color (reinhard). Thanks Marty :) 
-		fragment = pow(abs(fragment), HighlightGammaFactor);
+		fragment = pow(abs(ConeOverlap(fragment)), HighlightGammaFactor);
 		return fragment / max((1.001 - (HighlightBoost * fragment)), 0.001);
 	}	
 
@@ -178,7 +195,7 @@ namespace IgcsDOF
 	{
 		// Re-tonemap color (reinhard). Thanks Marty :) 
 		float3 toReturn = fragment / (1.001 + (HighlightBoost * fragment));
-		return pow(abs(toReturn), 1.0/ HighlightGammaFactor);
+		return ConeOverlapInverse(pow(abs(toReturn), 1.0/ HighlightGammaFactor));
 	}
 
 
@@ -200,7 +217,7 @@ namespace IgcsDOF
 	{
 		if(SessionState==2)
 		{
-			float3 currentFragment = tex2Dlod(ReShade::BackBuffer, float4(texcoord.x - FocusDelta.x, texcoord.y + FocusDelta.y, 0, 0)).rgb;
+			float3 currentFragment = tex2Dlod(ReShade::BackBuffer, float4(texcoord.x - FocusDelta, texcoord.y, 0, 0)).rgb;
 			float3 cachedFragment = CorrectForWhiteAccentuation(tex2Dlod(SamplerBlendAccumulate, float4(texcoord, 0, 0)).rgb); //undo cached accentuation
 			fragment = lerp(cachedFragment, currentFragment, SetupAlpha);
 		}
@@ -235,7 +252,8 @@ namespace IgcsDOF
 			fragment = 0;
 			if(BlendFrame)
 			{
-				float2 texCoordToReadFrom = texcoord+AlignmentDelta;
+				const float2 aspectRatio = float2(1, float(BUFFER_PIXEL_SIZE.y) / float(BUFFER_PIXEL_SIZE.x));
+				float2 texCoordToReadFrom = texcoord + AlignmentDelta.xy * aspectRatio;
 				bool isInside = all(saturate(texCoordToReadFrom - texCoordToReadFrom*texCoordToReadFrom));
 				if(isInside)
 				{
