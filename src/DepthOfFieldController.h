@@ -69,6 +69,13 @@ class DepthOfFieldController
 		float HeightMagnifierArea = 0.1f;
 	};
 
+	struct ApertureShapeSettings
+	{
+		int NumberOfVertices = 4;
+		float RotationAngle = 0.0f;
+		float RoundFactor = 0.25f;
+	};
+
 public:
 	DepthOfFieldController(CameraToolsConnector& connector);
 	~DepthOfFieldController() = default;
@@ -139,17 +146,18 @@ public:
 	void writeVariableStateToShader(reshade::api::effect_runtime* runtime);
 	void loadIniFileData(CDataFile& iniFile);
 	void saveIniFileData(CDataFile& iniFile);
+	void invalidateShapePoints() { calculateShapePoints(); }
 
 	// setters
 	void setNumberOfFramesToWaitPerFrame(int newValue) { _numberOfFramesToWaitPerFrame = newValue; }
 	void setQuality(int newValue)
 	{
-		_quality = newValue;
+		_quality = IGCS::Utils::clampEx(newValue, 1, 100);
 		calculateShapePoints();
 	}
 	void setNumberOfPointsInnermostRing(int newValue)
 	{
-		_numberOfPointsInnermostRing = newValue;
+		_numberOfPointsInnermostRing = IGCS::Utils::clampEx(newValue, 1, 100);
 		calculateShapePoints();
 	}
 	void setBlurType(DepthOfFieldBlurType newValue)
@@ -185,10 +193,12 @@ public:
 	int getNumberOfFramesToWaitPerFrame() { return _numberOfFramesToWaitPerFrame; }
 	bool getRenderPaused() { return _renderPaused; }
 	int getTotalNumberOfStepsToTake() { return _cameraSteps.size(); }
-	MagnifierSettings& getMagnifierSettings() { return _magnificationSettings; }		// this is a bit dirty...
 	bool getShowProgressBarAsOverlay() { return _showProgressBarAsOverlay; }
 	float getAnamorphicFactor() { return _anamorphicFactor; }
 	float getRingAngleOffset() { return _ringAngleOffset; }
+
+	MagnifierSettings& getMagnifierSettings() { return _magnificationSettings; }		// this is a bit dirty...
+	ApertureShapeSettings& getApertureShapeSettings() { return _apertureShapeSettings; }						// same
 
 	void setDebugBool1(bool newVal) { _debugBool1 = newVal; }
 	void setDebugBool2(bool newVal) { _debugBool2 = newVal; }
@@ -211,9 +221,7 @@ private:
 	/// Create a set of circular points using nested circles, which are used to build the camera steps array
 	/// </summary>
 	void createCircleDoFPoints();
-#if _DEBUG
-	void createLinearDoFPoints();
-#endif
+	void createApertureShapedDoFPoints();
 
 	void displayScreenshotSessionStartError(const ScreenshotSessionStartReturnCode sessionStartResult);
 	/// <summary>
@@ -261,6 +269,7 @@ private:
 	float _anamorphicFactor = 1.0f;
 	DepthOfFieldRenderOrder _renderOrder = DepthOfFieldRenderOrder::InnerRingToOuterRing;
 	bool _showProgressBarAsOverlay = true;
+	ApertureShapeSettings _apertureShapeSettings;
 
 	ReshadeStateSnapshot _reshadeStateAtStart;
 	std::mutex _reshadeStateMutex;

@@ -41,8 +41,8 @@ enum class DepthOfFieldRenderOrder : int
 
 enum class DepthOfFieldBlurType : int
 {
-	Linear,			// for motion blur
-	Circular,		// for bokeh
+	ApertureShape,
+	Circular,
 };
 
 

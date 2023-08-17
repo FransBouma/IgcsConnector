@@ -139,10 +139,17 @@ void DepthOfFieldController::loadIniFileData(CDataFile& iniFile)
 	loadFloatFromIni(iniFile, "MagnificationAreaHeight", &_magnificationSettings.HeightMagnifierArea);
 	loadFloatFromIni(iniFile, "AnamorphicFactor", &_anamorphicFactor);
 	loadFloatFromIni(iniFile, "RingAngleOffset", &_ringAngleOffset);
+	loadFloatFromIni(iniFile, "RotationAngle", &_apertureShapeSettings.RotationAngle);
+	loadFloatFromIni(iniFile, "RoundFactor", &_apertureShapeSettings.RoundFactor);
+	loadIntFromIni(iniFile, "NumberOfVertices", &_apertureShapeSettings.NumberOfVertices);
 	loadIntFromIni(iniFile, "Quality", &_quality);
 	loadIntFromIni(iniFile, "NumberOfPointsInnermostRing", &_numberOfPointsInnermostRing);
 	loadIntFromIni(iniFile, "NumberOfFramesToWaitPerFrame", &_numberOfFramesToWaitPerFrame);
 	loadBoolFromIni(iniFile, "ShowProgressBarAsOverlay", &_showProgressBarAsOverlay, true);
+
+	int blurType = 0;
+	loadIntFromIni(iniFile, "BlurType", &blurType);
+	_blurType = (DepthOfFieldBlurType)blurType;
 }
 
 
@@ -155,10 +162,14 @@ void DepthOfFieldController::saveIniFileData(CDataFile& iniFile)
 	iniFile.SetFloat("MagnificationAreaHeight", _magnificationSettings.HeightMagnifierArea, "", "DepthOfField");
 	iniFile.SetFloat("AnamorphicFactor", _anamorphicFactor, "", "DepthOfField");
 	iniFile.SetFloat("RingAngleOffset", _ringAngleOffset, "", "DepthOfField");
+	iniFile.SetFloat("RotationAngle", _apertureShapeSettings.RotationAngle, "", "DepthOfField");
+	iniFile.SetFloat("RoundFactor", _apertureShapeSettings.RoundFactor, "", "DepthOfField");
+	iniFile.SetInt("NumberOfVertices", _apertureShapeSettings.NumberOfVertices, "", "DepthOfField");
 	iniFile.SetInt("Quality", _quality, "", "DepthOfField");
 	iniFile.SetInt("NumberOfPointsInnermostRing", _numberOfPointsInnermostRing, "", "DepthOfField");
 	iniFile.SetInt("NumberOfFramesToWaitPerFrame", _numberOfFramesToWaitPerFrame, "", "DepthOfField");
 	iniFile.SetBool("ShowProgressBarAsOverlay", _showProgressBarAsOverlay, "", "DepthOfField");
+	iniFile.SetInt("BlurType", (int)_blurType, "", "DepthOfField");
 }
 
 
@@ -363,8 +374,6 @@ void DepthOfFieldController::createCircleDoFPoints()
 {
 	_cameraSteps.clear();
 
-	// to create shapes with vertices: https://www.shadertoy.com/view/ctjcRz
-
 	const float pointsFirstRing = (float)_numberOfPointsInnermostRing;
 	float pointsOnRing = pointsFirstRing;
 	const float maxBokehRadius = _maxBokehSize / 2.0f;
@@ -407,14 +416,83 @@ void DepthOfFieldController::createCircleDoFPoints()
 }
 
 
+void DepthOfFieldController::createApertureShapedDoFPoints()
+{
+	_cameraSteps.clear();
+
+	// sanitize input for 4 vertex elements
+	if(4 == _apertureShapeSettings.NumberOfVertices)
+	{
+		if(_ringAngleOffset<-0.015f || _ringAngleOffset > 0.015f)
+		{
+			_ringAngleOffset = 0.0f;
+		}
+	}
+
+	const float maxBokehRadius = _maxBokehSize / 2.0f;
+	const float focusDeltaHalf = _focusDelta / 2.0f;
+	const float anglePerVertex = 6.28318530717958f / (float)_apertureShapeSettings.NumberOfVertices;
+	for(int ringNo = 1; ringNo <= _quality; ringNo++)
+	{
+		float vertexAngle = fmod(anglePerVertex + (_apertureShapeSettings.RotationAngle * 6.28318530717958f) + ((float)ringNo * _ringAngleOffset), 6.28318530717958f);
+		const float ringDistance = (float)ringNo / (float)_quality;
+		for(int vertexNo = 0; vertexNo < _apertureShapeSettings.NumberOfVertices; vertexNo++)
+		{
+			const float sinAngleCurrentVertex = sin(vertexAngle);
+			const float cosAngleCurrentVertex = cos(vertexAngle);
+			float nextVertexAngle = fmod(vertexAngle + anglePerVertex, 6.28318530717958f);
+			const float sinAngleNextVertex = sin(nextVertexAngle);
+			const float cosAngleNextVertex = cos(nextVertexAngle);
+			const float xCurrentVertex = ringDistance * cosAngleCurrentVertex * _anamorphicFactor;
+			const float yCurrentVertex = ringDistance * sinAngleCurrentVertex;
+			const float xNextVertex = ringDistance * cosAngleNextVertex * _anamorphicFactor;
+			const float yNextVertex = ringDistance * sinAngleNextVertex;
+			const float pointStepSize = 1.0f / (float)ringNo;
+			float pointStep = pointStepSize;
+			for(int pointNumber = 0; pointNumber < ringNo; pointNumber++)
+			{
+				float pointAngle = IGCS::Utils::lerp(vertexAngle, vertexAngle + anglePerVertex, pointStep);
+				const float sinPointAngle = sin(pointAngle);
+				const float cosPointAngle = cos(pointAngle);
+				const float xRoundPoint = ringDistance * cosPointAngle * _anamorphicFactor;
+				const float yRoundPoint = ringDistance * sinPointAngle;
+				const float xLinePoint = IGCS::Utils::lerp(xCurrentVertex, xNextVertex, pointStep);
+				const float yLinePoint = IGCS::Utils::lerp(yCurrentVertex, yNextVertex, pointStep);
+				const float x = IGCS::Utils::lerp(xLinePoint, xRoundPoint, _apertureShapeSettings.RoundFactor);
+				const float y = IGCS::Utils::lerp(yLinePoint, yRoundPoint, _apertureShapeSettings.RoundFactor);
+				const float xDelta = maxBokehRadius * x;
+				const float yDelta = maxBokehRadius * y;
+				_cameraSteps.push_back({ xDelta, yDelta, x * -focusDeltaHalf, y * focusDeltaHalf });
+				pointStep += pointStepSize;
+			}
+			vertexAngle += anglePerVertex;
+			vertexAngle = fmod(vertexAngle, 6.28318530717958f);
+		}
+	}
+
+	switch(_renderOrder)
+	{
+		case DepthOfFieldRenderOrder::InnerRingToOuterRing:
+			// nothing, we're already having the points in the right order
+			break;
+		case DepthOfFieldRenderOrder::OuterRingToInnerRing:
+			// reverse the container.
+			std::ranges::reverse(_cameraSteps);
+			break;
+		case DepthOfFieldRenderOrder::Randomized:
+			std::ranges::shuffle(_cameraSteps, std::random_device());
+			break;
+		default:;
+	}
+}
+
+
 void DepthOfFieldController::calculateShapePoints()
 {
 	switch(_blurType)
 	{
-		case DepthOfFieldBlurType::Linear:
-#if _DEBUG
-			createLinearDoFPoints();
-#endif
+		case DepthOfFieldBlurType::ApertureShape:
+			createApertureShapedDoFPoints();
 			break;
 		case DepthOfFieldBlurType::Circular: 
 			createCircleDoFPoints();
@@ -494,10 +572,9 @@ void DepthOfFieldController::drawShape(ImDrawList* drawList, ImVec2 topLeftScree
 	maxBokehRadius = maxBokehRadius < FLT_EPSILON ? 1.0f : maxBokehRadius;
 	const ImColor dotColor = IM_COL32(255, 255, 255, 255);
 	drawList->AddCircleFilled(ImVec2(x, y), 1.5f, dotColor);	// center
-	const float expandFactor = _blurType == DepthOfFieldBlurType::Circular ? 1.0f : 0.5f;		// linear has nodes on 1 side
 	for(const auto& step : _cameraSteps)
 	{
-		drawList->AddCircleFilled(ImVec2(x + (((step.xDelta * expandFactor) / maxBokehRadius) * maxRadius), y + (((step.yDelta * expandFactor) / maxBokehRadius) * maxRadius)), 1.5f, dotColor);
+		drawList->AddCircleFilled(ImVec2(x + ((step.xDelta / maxBokehRadius) * maxRadius), y + ((step.yDelta / maxBokehRadius) * maxRadius)), 1.5f, dotColor);
 	}
 }
 
@@ -601,22 +678,3 @@ void DepthOfFieldController::loadBoolFromIni(CDataFile& iniFile, const std::stri
 	*toWriteTo = valueToUse;
 }
 
-
-#if _DEBUG
-// For debugging purposes only
-void DepthOfFieldController::createLinearDoFPoints()
-{
-	_cameraSteps.clear();
-	bool vertical = _debugBool1;
-	for(int ringNo = 1; ringNo <= _quality; ringNo++)
-	{
-		// for testing, first a linear move like a lightfield.
-		const float stepDelta = (float)ringNo / (float)_quality;
-		const float xDelta = vertical ? 0.0f : _maxBokehSize * stepDelta;
-		const float yDelta = vertical ? _maxBokehSize * stepDelta : 0.0f;
-		const float xAlignmentDelta = stepDelta * -_focusDelta;
-		const float yAlignmentDelta = stepDelta * _focusDelta;
-		_cameraSteps.push_back({ xDelta, yDelta, vertical ? 0.0f : xAlignmentDelta, vertical ? yAlignmentDelta : 0.0f });
-	}
-}
-#endif

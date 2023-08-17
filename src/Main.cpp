@@ -517,28 +517,47 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 
 							ImGui::SeparatorText("Bokeh setup");
 							int blurType = (int)g_depthOfFieldController.getBlurType();
-#if _DEBUG
-							// In debug build we can also pick linear
-							changed = ImGui::Combo("Blur type", &blurType, "Linear\0Circular\0\0");
+							changed = ImGui::Combo("Blur type", &blurType, "Aperture shaped\0Circular\0\0");
 							if(changed)
 							{
 								g_depthOfFieldController.setBlurType((DepthOfFieldBlurType)blurType);
 							}
-#endif
+
 							int quality = g_depthOfFieldController.getQuality();
 							changed = ImGui::DragInt("Quality", &quality, 1, 1, 100);
 							if(changed)
 							{
 								g_depthOfFieldController.setQuality(quality);
 							}
-							int numberOfPointsInnermostCircle = g_depthOfFieldController.getNumberOfPointsInnermostRing();
-							changed = ImGui::DragInt("Number of points of innermost circle", &numberOfPointsInnermostCircle, 1, 1, 100);
-							if(changed)
+							switch((DepthOfFieldBlurType)blurType)
 							{
-								g_depthOfFieldController.setNumberOfPointsInnermostRing(numberOfPointsInnermostCircle);
+								case DepthOfFieldBlurType::ApertureShape:
+									{
+										bool shapeSettingsChanged = false;
+										auto& shapeSettings = g_depthOfFieldController.getApertureShapeSettings();
+										shapeSettingsChanged |= ImGui::DragInt("Number of vertices", &shapeSettings.NumberOfVertices, 1, 3, 16);
+										shapeSettingsChanged |= ImGui::DragFloat("Rounding factor", &shapeSettings.RoundFactor, 0.001f, 0.0f, 1.0f);
+										shapeSettingsChanged |= ImGui::DragFloat("Rotation angle", &shapeSettings.RotationAngle, 0.001f, 0.0f, 1.0f);		// multiplier to 2PI.
+
+										if(shapeSettingsChanged)
+										{
+											g_depthOfFieldController.invalidateShapePoints();
+										}
+									}
+									break;
+								case DepthOfFieldBlurType::Circular:
+									{
+										int numberOfPointsInnermostCircle = g_depthOfFieldController.getNumberOfPointsInnermostRing();
+										changed = ImGui::DragInt("Number of points of innermost ring", &numberOfPointsInnermostCircle, 1, 1, 100);
+										if(changed)
+										{
+											g_depthOfFieldController.setNumberOfPointsInnermostRing(numberOfPointsInnermostCircle);
+										}
+									}
+									break;
 							}
 							float ringAngleOffset = g_depthOfFieldController.getRingAngleOffset();
-							changed = ImGui::DragFloat("Ring angle offset", &ringAngleOffset, 0.001f, -2.0f, 2.0f);
+							changed = ImGui::DragFloat("Ring angle offset", &ringAngleOffset, 0.001f, -0.015f, 0.015f);
 							if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
 							{
 								ImGui::SetTooltip("This offset lets you rotate rings relative\nto each other to avoid the common grid pattern with lower\namount of rings.");
@@ -551,7 +570,7 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 							changed = ImGui::DragFloat("Anamorphic factor", &anamorphicFactor, 0.001f, 0.01f, 1.0f);
 							if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
 							{
-								ImGui::SetTooltip("At 1.0 it gives perfect round bokehs,\n at a lower value it gives vertical ellipses.");
+								ImGui::SetTooltip("Mainly meant for circular shapes\nAt 1.0 it gives perfect round bokehs,\n at a lower value it gives vertical ellipses.");
 							}
 							if(changed)
 							{
