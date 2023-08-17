@@ -138,6 +138,7 @@ void DepthOfFieldController::loadIniFileData(CDataFile& iniFile)
 	loadFloatFromIni(iniFile, "MagnificationAreaWidth", &_magnificationSettings.WidthMagnifierArea);
 	loadFloatFromIni(iniFile, "MagnificationAreaHeight", &_magnificationSettings.HeightMagnifierArea);
 	loadFloatFromIni(iniFile, "AnamorphicFactor", &_anamorphicFactor);
+	loadFloatFromIni(iniFile, "RingAngleOffset", &_ringAngleOffset);
 	loadIntFromIni(iniFile, "Quality", &_quality);
 	loadIntFromIni(iniFile, "NumberOfPointsInnermostRing", &_numberOfPointsInnermostRing);
 	loadIntFromIni(iniFile, "NumberOfFramesToWaitPerFrame", &_numberOfFramesToWaitPerFrame);
@@ -153,6 +154,7 @@ void DepthOfFieldController::saveIniFileData(CDataFile& iniFile)
 	iniFile.SetFloat("MagnificationAreaWidth", _magnificationSettings.WidthMagnifierArea, "", "DepthOfField");
 	iniFile.SetFloat("MagnificationAreaHeight", _magnificationSettings.HeightMagnifierArea, "", "DepthOfField");
 	iniFile.SetFloat("AnamorphicFactor", _anamorphicFactor, "", "DepthOfField");
+	iniFile.SetFloat("RingAngleOffset", _ringAngleOffset, "", "DepthOfField");
 	iniFile.SetInt("Quality", _quality, "", "DepthOfField");
 	iniFile.SetInt("NumberOfPointsInnermostRing", _numberOfPointsInnermostRing, "", "DepthOfField");
 	iniFile.SetInt("NumberOfFramesToWaitPerFrame", _numberOfFramesToWaitPerFrame, "", "DepthOfField");
@@ -366,23 +368,23 @@ void DepthOfFieldController::createCircleDoFPoints()
 	const float pointsFirstRing = (float)_numberOfPointsInnermostRing;
 	float pointsOnRing = pointsFirstRing;
 	const float maxBokehRadius = _maxBokehSize / 2.0f;
-	const float distanceBetweenRings = (maxBokehRadius * (1.0f / (float)_quality));
 	const float focusDeltaHalf = _focusDelta / 2.0f;
 	for(int ringNo = 1; ringNo <= _quality; ringNo++)
 	{
 		const float anglePerPoint = 6.28318530717958f / pointsOnRing;
-		float angle = anglePerPoint;
+		float angle = anglePerPoint + ((float)ringNo * _ringAngleOffset);
 		const float ringDistance = (float)ringNo / (float)_quality;
 		for(int pointNumber = 0;pointNumber<pointsOnRing;pointNumber++)
 		{
 			const float sinAngle = sin(angle);
 			const float cosAngle = cos(angle);
-			float x = ringDistance * cosAngle * _anamorphicFactor;
-			float y = ringDistance * sinAngle;
+			const float x = ringDistance * cosAngle * _anamorphicFactor;
+			const float y = ringDistance * sinAngle;
 			const float xDelta = maxBokehRadius * x;
 			const float yDelta = maxBokehRadius * y;
 			_cameraSteps.push_back({ xDelta, yDelta, x * -focusDeltaHalf, y * focusDeltaHalf});
 			angle += anglePerPoint;
+			angle = fmod(angle, 6.28318530717958f);
 		}
 
 		pointsOnRing += pointsFirstRing;

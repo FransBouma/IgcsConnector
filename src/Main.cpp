@@ -537,6 +537,16 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 							{
 								g_depthOfFieldController.setNumberOfPointsInnermostRing(numberOfPointsInnermostCircle);
 							}
+							float ringAngleOffset = g_depthOfFieldController.getRingAngleOffset();
+							changed = ImGui::DragFloat("Ring angle offset", &ringAngleOffset, 0.001f, -2.0f, 2.0f);
+							if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+							{
+								ImGui::SetTooltip("This offset lets you rotate rings relative\nto each other to avoid the common grid pattern with lower\namount of rings.");
+							}
+							if(changed)
+							{
+								g_depthOfFieldController.setRingAngleOffset(ringAngleOffset);
+							}
 							float anamorphicFactor = g_depthOfFieldController.getAnamorphicFactor();
 							changed = ImGui::DragFloat("Anamorphic factor", &anamorphicFactor, 0.001f, 0.01f, 1.0f);
 							if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
