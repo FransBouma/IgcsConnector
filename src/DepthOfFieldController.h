@@ -84,7 +84,7 @@ public:
 	/// Sets the focus delta. This controls value 'A' in the design which is the percentage the pixels which have to be in focus have moved over MaxBokehSize.
 	///	This value is used to realign the image when the camera steps a factor of MaxBokehSize.
 	/// </summary>
-	void setXYFocusDelta(reshade::api::effect_runtime* runtime, float newValueX, float newValueY);
+	void setXFocusDelta(reshade::api::effect_runtime* runtime, float newValueX);
 	/// <summary>
 	/// Starts a new session. 
 	/// </summary>
@@ -171,8 +171,7 @@ public:
 	// getters
 	DepthOfFieldRenderOrder getRenderOrder() { return _renderOrder; }
 	float getMaxBokehSize() { return _maxBokehSize; }
-	float getXFocusDelta() { return _xFocusDelta; }
-	float getYFocusDelta() { return _yFocusDelta; }
+	float getXFocusDelta() { return _focusDelta; }
 	int getQuality() { return _quality; }
 	float getHighlightBoostFactor() { return _highlightBoostFactor; }
 	float getHighlightGammaFactor() { return _highlightGammaFactor; }
@@ -231,8 +230,7 @@ private:
 	std::function<void(reshade::api::effect_runtime*)>  _onPresentWorkFunc = nullptr;			// if set, this function is called when the onPresentWork counter reaches 0.
 
 	float _maxBokehSize = 0.25;			// value 'B', so the max diameter of a circle we're going to walk. In world units of the engine
-	float _xFocusDelta = 0.0f;			// value 'A', the relationship between stepping over maxBokehSize and the movement of the pixels that have to be in focus. X specific
-	float _yFocusDelta = 0.0f;			// value 'A', the relationship between stepping over maxBokehSize and the movement of the pixels that have to be in focus. X specific
+	float _focusDelta = 0.0f;			// value 'A', the relationship between stepping over maxBokehSize and the movement of the pixels that have to be in focus. X specific
 	bool _blendFrame = false;			// if true, the shader will blend the curreent frame if state is Render
 	float _blendFactor = 0.0f;			// for the shader, the blend factor to use when blending a frame
 	float _xAlignmentDelta = 0.0f;		// for the shader, the alignment x delta to use

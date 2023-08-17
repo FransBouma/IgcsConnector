@@ -58,33 +58,30 @@ void DepthOfFieldController::setMaxBokehSize(reshade::api::effect_runtime* runti
 	// recalculate focus x/y
 	if(oldValue > 0.0f)
 	{
-		float delta = _maxBokehSize - oldValue;
-		delta = delta / oldValue;
-		_xFocusDelta += delta * _xFocusDelta;
-		_yFocusDelta += delta * _yFocusDelta;
+		const float ratio = _maxBokehSize / oldValue;
+		_focusDelta *= ratio;
 	}
 	calculateShapePoints();
 
 	// we have to move the camera over the new distance. We move relative to the start position.
-	_cameraToolsConnector.moveCameraMultishot(_maxBokehSize, _maxBokehSize, 0.0f, true);
+	_cameraToolsConnector.moveCameraMultishot(_maxBokehSize, 0.0f, 0.0f, true);
 	// the value is passed to the shader next present call
 }
 
 
-void DepthOfFieldController::setXYFocusDelta(reshade::api::effect_runtime* runtime, float newValueX, float newValueY)
+void DepthOfFieldController::setXFocusDelta(reshade::api::effect_runtime* runtime, float newValueX)
 {
 	if(DepthOfFieldControllerState::Setup!=_state)
 	{
 		// not in setup
 		return;
 	}
-	_xFocusDelta = newValueX;
-	_yFocusDelta = newValueY;
+	_focusDelta = newValueX;
 
 	calculateShapePoints();
 
 	// set the uniform in the shader for blending the new framebuffer so the user has visual feedback
-	setUniformFloat2Variable(runtime, "FocusDelta", _xFocusDelta, _yFocusDelta);
+	setUniformFloatVariable(runtime, "FocusDelta", _focusDelta);
 	// the value is passed to the shader next present call
 }
 
@@ -120,7 +117,7 @@ void DepthOfFieldController::writeVariableStateToShader(reshade::api::effect_run
 	}
 
 	setUniformIntVariable(runtime, "SessionState", (int)_state);
-	setUniformFloat2Variable(runtime, "FocusDelta", _xFocusDelta, _yFocusDelta);
+	setUniformFloatVariable(runtime, "FocusDelta", _focusDelta);
 	setUniformBoolVariable(runtime, "BlendFrame", _blendFrame);
 	setUniformFloatVariable(runtime, "BlendFactor", _blendFactor);
 	setUniformFloat2Variable(runtime, "AlignmentDelta", _xAlignmentDelta, _yAlignmentDelta);
@@ -194,7 +191,7 @@ void DepthOfFieldController::startSession(reshade::api::effect_runtime* runtime)
 	{
 		this->_state = DepthOfFieldControllerState::Setup;
 		// we have to move the camera over the new distance. We move relative to the start position.
-		_cameraToolsConnector.moveCameraMultishot(_maxBokehSize, _maxBokehSize, 0.0f, true);
+		_cameraToolsConnector.moveCameraMultishot(_maxBokehSize, 0.0f, 0.0f, true);
 	};
 }
 
@@ -370,8 +367,7 @@ void DepthOfFieldController::createCircleDoFPoints()
 	float pointsOnRing = pointsFirstRing;
 	const float maxBokehRadius = _maxBokehSize / 2.0f;
 	const float distanceBetweenRings = (maxBokehRadius * (1.0f / (float)_quality));
-	const float xFocusDelta = _xFocusDelta / 2.0f;
-	const float yFocusDelta = _yFocusDelta / 2.0f;
+	const float focusDeltaHalf = _focusDelta / 2.0f;
 	for(int ringNo = 1; ringNo <= _quality; ringNo++)
 	{
 		const float anglePerPoint = 6.28318530717958f / pointsOnRing;
@@ -385,7 +381,7 @@ void DepthOfFieldController::createCircleDoFPoints()
 			float y = ringDistance * sinAngle;
 			const float xDelta = maxBokehRadius * x;
 			const float yDelta = maxBokehRadius * y;
-			_cameraSteps.push_back({ xDelta, yDelta, x * -xFocusDelta, y * yFocusDelta});
+			_cameraSteps.push_back({ xDelta, yDelta, x * -focusDeltaHalf, y * focusDeltaHalf});
 			angle += anglePerPoint;
 		}
 
@@ -616,8 +612,8 @@ void DepthOfFieldController::createLinearDoFPoints()
 		const float stepDelta = (float)ringNo / (float)_quality;
 		const float xDelta = vertical ? 0.0f : _maxBokehSize * stepDelta;
 		const float yDelta = vertical ? _maxBokehSize * stepDelta : 0.0f;
-		const float xAlignmentDelta = stepDelta * -_xFocusDelta;
-		const float yAlignmentDelta = stepDelta * _yFocusDelta;
+		const float xAlignmentDelta = stepDelta * -_focusDelta;
+		const float yAlignmentDelta = stepDelta * _focusDelta;
 		_cameraSteps.push_back({ xDelta, yDelta, vertical ? 0.0f : xAlignmentDelta, vertical ? yAlignmentDelta : 0.0f });
 	}
 }

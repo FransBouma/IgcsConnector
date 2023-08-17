@@ -477,15 +477,15 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 								g_depthOfFieldController.setMaxBokehSize(runtime, maxBokehSize);
 							}
 
-							float focusDeltas[2] = { (g_depthOfFieldController.getXFocusDelta()), (g_depthOfFieldController.getYFocusDelta()) };
-							changed = ImGui::DragFloat2("Focus deltas X, Y", focusDeltas, 0.0001f, -1.0f, 1.0f, "%.4f");
+							float focusDelta = g_depthOfFieldController.getXFocusDelta();
+							changed = ImGui::DragFloat("Focus delta X", &focusDelta, 0.0001f, -1.0f, 1.0f, "%.4f");
 							if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
 							{
-								ImGui::SetTooltip("Use these two values to align the two images\non the spot you want to have in focus");
+								ImGui::SetTooltip("Use this value to align the two images\non the spot you want to have in focus");
 							}
 							if(changed)
 							{
-								g_depthOfFieldController.setXYFocusDelta(runtime, focusDeltas[0], focusDeltas[1]);
+								g_depthOfFieldController.setXFocusDelta(runtime, focusDelta);
 							}
 							int numberOfFramesToWaitPerFrame = g_depthOfFieldController.getNumberOfFramesToWaitPerFrame();
 							changed = ImGui::DragInt("Number of frames to wait per frame", &numberOfFramesToWaitPerFrame, 1, 1, 20);
