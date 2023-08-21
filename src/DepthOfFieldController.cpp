@@ -110,7 +110,7 @@ void DepthOfFieldController::displayScreenshotSessionStartError(const Screenshot
 
 void DepthOfFieldController::writeVariableStateToShader(reshade::api::effect_runtime* runtime)
 {
-	if(_reshadeStateAtStart.isEmpty())
+	if(isReshadeStateEmpty())
 	{
 		std::scoped_lock lock(_reshadeStateMutex);
 		_reshadeStateAtStart.obtainReshadeState(runtime);
@@ -561,20 +561,22 @@ void DepthOfFieldController::migrateReshadeState(reshade::api::effect_runtime* r
 		case DepthOfFieldControllerState::Cancelling:
 			return;
 	}
-	if(_reshadeStateAtStart.isEmpty())
+	if(isReshadeStateEmpty())
 	{
 		return;
 	}
 
-	std::scoped_lock lock(_reshadeStateMutex);
-	ReshadeStateSnapshot newState;
-	newState.obtainReshadeState(runtime);
-	// we don't care about the variable values, only about id's and variable names. So we can replace what we have with the new state.
-	// If the new state is empty, that's fine, setting variables takes care of that. 
-	_reshadeStateAtStart = newState;
-
+	{
+		std::scoped_lock lock(_reshadeStateMutex);
+		ReshadeStateSnapshot newState;
+		newState.obtainReshadeState(runtime);
+		// we don't care about the variable values, only about id's and variable names. So we can replace what we have with the new state.
+		// If the new state is empty, that's fine, setting variables takes care of that. 
+		_reshadeStateAtStart = newState;
+	}
+		
 	// if the newstate is empty we do nothing. If the new state isn't empty we had a migration and the variables are valid.
-	if(!newState.isEmpty() && _state == DepthOfFieldControllerState::Setup)
+	if(!isReshadeStateEmpty() && _state == DepthOfFieldControllerState::Setup)
 	{
 		// we now restart the session. This is necessary because we lose the cached start texture.
 		endSession(runtime);

@@ -256,7 +256,12 @@ private:
 	/// Method which will setup the frame for blending, moving the camera, configuring the shader.
 	/// </summary>
 	void performRenderFrameSetupWork();
-	
+	bool isReshadeStateEmpty()
+	{
+		std::scoped_lock lock(_reshadeStateMutex);
+		return _reshadeStateAtStart.isEmpty();
+	}
+
 	CameraToolsConnector& _cameraToolsConnector;
 	DepthOfFieldControllerState _state;
 	std::vector<CameraLocation> _cameraSteps;

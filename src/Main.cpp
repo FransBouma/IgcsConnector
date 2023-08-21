@@ -354,6 +354,18 @@ void saveIniFile()
 }
 
 
+bool requiredTechniqueEnabled(const std::string& effectName, const std::string& techniqueName , effect_runtime* runtime)
+{
+	const auto techniqueHandle = runtime->find_technique(effectName.c_str(), techniqueName.c_str());
+	if(techniqueHandle.handle <= 0)
+	{
+		return false;
+	}
+
+	return runtime->get_technique_state(techniqueHandle);
+}
+
+
 static void displaySettings(reshade::api::effect_runtime* runtime)
 {
 	ImGui::AlignTextToFramePadding();
@@ -447,14 +459,21 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 
 						if(cameraData->cameraEnabled)
 						{
-							if(ImGui::Button("Start depth-of-field session"))
+							if(requiredTechniqueEnabled("IgcsDof.fx", "IgcsDOF", runtime))
 							{
-								g_depthOfFieldController.startSession(runtime);
+								if(ImGui::Button("Start depth-of-field session"))
+								{
+									g_depthOfFieldController.startSession(runtime);
+								}
+							}
+							else
+							{
+								ImGui::TextWrapped("On the ReShade 'Home' tab, please enable 'IgcsDOF' and place it at the bottom of the list by dragging it there.");
 							}
 						}
 						else
 						{
-							ImGui::Text("Camera disabled so no depth-of-field session can be started");
+							ImGui::TextWrapped("The camera is currently disabled so no depth-of-field session can be started");
 						}
 					}
 					break;

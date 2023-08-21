@@ -41,6 +41,7 @@
 /// <summary>
 /// Defines a reshade state snapshot, which contains all enabled techniques and all uniform variables and their values. 
 /// </summary>
+///	<remarks>It's not possible to add a mutex to this class as it's contained in the CameraPathData objects for camera paths.</remarks>
 class ReshadeStateSnapshot
 {
 public:
@@ -69,7 +70,6 @@ private:
 	void addTechnique(reshade::api::effect_technique id, std::string name, bool isEnabled);
 
 	std::unordered_map<std::string, EffectState> _effectStatePerEffectName;
-
 	std::unordered_map<std::string, uint64_t> _techniqueIdPerName;
 	std::unordered_map<std::string, bool> _techniqueEnabledPerName;
 };
