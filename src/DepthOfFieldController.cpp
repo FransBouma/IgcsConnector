@@ -458,7 +458,8 @@ void DepthOfFieldController::createApertureShapedDoFPoints()
 	const int startRingBoosted = (int)(_sphericalAberrationFactor * (float)(_quality - 1)) + 1;
 	for(int ringNo = 1; ringNo <= _quality; ringNo++)
 	{
-		float vertexAngle = fmod(anglePerVertex + (_apertureShapeSettings.RotationAngle * 6.28318530717958f) + ((float)ringNo * _ringAngleOffset), 6.28318530717958f);
+		// ring angle offset is applied stronger on inner rings than on outer rings, to keep the outer ring from staying in the same place. 
+		float vertexAngle = fmod(anglePerVertex + (_apertureShapeSettings.RotationAngle * 6.28318530717958f) + ((float)(_quality-ringNo) * _ringAngleOffset), 6.28318530717958f);
 		const float ringDistance = (float)ringNo / (float)_quality;
 		const float sphericalAberrationFactorTouse = calculateSphericalAberrationFactorToUse(startRingBoosted, ringNo);
 		for(int vertexNo = 0; vertexNo < _apertureShapeSettings.NumberOfVertices; vertexNo++)
