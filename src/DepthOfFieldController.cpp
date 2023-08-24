@@ -603,7 +603,8 @@ void DepthOfFieldController::drawShape(ImDrawList* drawList, ImVec2 topLeftScree
 	for(const auto& step : _cameraSteps)
 	{
 		dotColor = ImColor(step.busyBokehFactor, step.busyBokehFactor, step.busyBokehFactor);
-		drawList->AddCircleFilled(ImVec2(x + ((step.xDelta / maxBokehRadius) * maxRadius), y + ((step.yDelta / maxBokehRadius) * maxRadius)), 1.5f, dotColor);
+		// our (0,0) for rendering is top left, however the (0, 0) for the canvas is bottom left.
+		drawList->AddCircleFilled(ImVec2(x + ((step.xDelta / maxBokehRadius) * maxRadius), y - ((step.yDelta / maxBokehRadius) * maxRadius)), 1.5f, dotColor);
 	}
 }
 
