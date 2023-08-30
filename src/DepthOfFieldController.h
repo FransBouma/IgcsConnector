@@ -186,10 +186,14 @@ public:
 		_sphericalAberrationDimFactor = IGCS::Utils::clampEx(newValue, 0.0f, 1.0f);
 		calculateShapePoints();
 	}
+	void setRenderOrder(DepthOfFieldRenderOrder newValue)
+	{
+		_renderOrder = newValue;
+		calculateShapePoints();
+	}
 	void setHighlightBoostFactor(float newValue) { _highlightBoostFactor = IGCS::Utils::clampEx(newValue, 0.0f, 1.0f); }
 	void setHighlightGammaFactor(float newValue) { _highlightGammaFactor = IGCS::Utils::clampEx(newValue, 0.1f, 5.0f); }
 	void setRenderPaused(bool newValue) { _renderPaused = newValue; }
-	void setRenderOrder(DepthOfFieldRenderOrder newValue) { _renderOrder = newValue; }
 	void setShowProgressBarAsOverlay(bool newValue) { _showProgressBarAsOverlay = newValue; }
 
 	// getters

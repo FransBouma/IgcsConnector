@@ -37,7 +37,7 @@
 
 namespace IgcsDOF
 {
-	#define IGCS_DOF_SHADER_VERSION "v1.2.0"
+	#define IGCS_DOF_SHADER_VERSION "v1.2.1"
 	
 // #define IGCS_DOF_DEBUG	
 	
@@ -48,7 +48,7 @@ namespace IgcsDOF
 	uniform float SetupAlpha <
 		ui_label = "Setup alpha";
 		ui_type = "drag";
-		ui_min = 0.0; ui_max = 1.0;
+		ui_min = 0.2; ui_max = 0.8;
 		ui_step = 0.001;
 	> = 0.5;
 
