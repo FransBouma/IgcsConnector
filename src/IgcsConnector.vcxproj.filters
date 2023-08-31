@@ -58,6 +58,9 @@
     <ClInclude Include="CDataFile.h">
       <Filter>Include</Filter>
     </ClInclude>
+    <ClInclude Include="Features.h">
+      <Filter>Include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Code">
