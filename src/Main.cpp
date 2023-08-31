@@ -52,6 +52,7 @@
 #include "ReshadeStateController.h"
 #include "ThreadSafeQueue.h"
 #include "WorkItem.h"
+#include "Features.h"
 
 using namespace reshade::api;
 
@@ -61,6 +62,7 @@ extern "C" __declspec(dllexport) const char *DESCRIPTION = "Add-on which allows 
 
 // externs for IGCS
 extern "C" __declspec(dllexport) bool connectFromCameraTools();
+extern "C" __declspec(dllexport) bool connectFromCameraToolsWithFeatures(int f);
 extern "C" __declspec(dllexport) LPBYTE getDataFromCameraToolsBuffer();
 extern "C" __declspec(dllexport) void addCameraPath();
 extern "C" __declspec(dllexport) void appendStateSnapshotAfterSnapshotOnPath(int pathIndex, int indexToAppendAfter);
@@ -81,6 +83,7 @@ static ScreenshotSettings g_screenshotSettings;
 static ScreenshotController g_screenshotController(g_cameraToolsConnector);
 static DepthOfFieldController g_depthOfFieldController(g_cameraToolsConnector);
 static ReshadeStateController g_reshadeStateController;
+static Features g_supportedFeatures;
 static IGCS::ThreadSafeQueue<WorkItem> g_presentWorkQueue;
 static bool g_recordReshadeState = true;
 
@@ -101,7 +104,16 @@ bool connectFromCameraTools()
 	// connect back to the camera tools
 	g_cameraToolsConnector.connectToCameraTools();
 
+	// Set all features to maintain backward compatibilities
+	g_supportedFeatures = Features::AllFeatures;
+
+
 	return g_dataFromCameraToolsBuffer!=nullptr;
+}
+
+bool connectFromCameraToolsWithFeatures(int f) {
+	connectFromCameraTools();
+	g_supportedFeatures = static_cast<Features>(f);
 }
 
 
