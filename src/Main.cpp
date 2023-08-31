@@ -112,8 +112,10 @@ bool connectFromCameraTools()
 }
 
 bool connectFromCameraToolsWithFeatures(int f) {
-	connectFromCameraTools();
+	bool status = connectFromCameraTools();
 	g_supportedFeatures = static_cast<Features>(f);
+
+	return status;
 }
 
 
