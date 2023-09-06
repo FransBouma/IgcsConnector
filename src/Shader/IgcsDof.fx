@@ -65,6 +65,15 @@ namespace IgcsDOF
 		ui_step = 0.001;
 		hidden=true;
 	> = 0.50;
+	uniform float SphericalAberrationDimFactorForFrame <
+		ui_category = "Spherical Aberration";
+		ui_label="Spherical Aberration Dim Factor for Frame";
+		ui_type = "drag";
+		ui_min = 0.00; ui_max = 1.00;
+		ui_tooltip = "Will weight each frame to produce spherical aberration";
+		ui_step = 0.001;
+		hidden=true;
+	> = 1.0;
 	uniform float HighlightGammaFactor <
 		ui_category = "Highlight tweaking";
 		ui_label="Highlight gamma factor";
@@ -259,6 +268,7 @@ namespace IgcsDOF
 				{
 					float3 currentFragment = tex2Dlod(ReShade::BackBuffer, float4(texCoordToReadFrom, 0.0f, 0.0f)).rgb;
 					currentFragment = AccentuateWhites(currentFragment);
+					currentFragment *= SphericalAberrationDimFactorForFrame; //adjust exposure of current sample here
 					fragment = float4(currentFragment, BlendFactor);
 				}				
 			}					

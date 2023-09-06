@@ -176,11 +176,6 @@ public:
 		_ringAngleOffset = IGCS::Utils::clampEx(newValue, -2.0f, 2.0f);
 		calculateShapePoints();
 	}
-	void setSphericalAberrationFactor(float newValue)
-	{
-		_sphericalAberrationFactor = IGCS::Utils::clampEx(newValue, 0.0f, 1.0f);
-		calculateShapePoints();
-	}
 	void setSphericalAberrationDimFactor(float newValue)
 	{
 		_sphericalAberrationDimFactor = IGCS::Utils::clampEx(newValue, 0.0f, 1.0f);
@@ -211,7 +206,6 @@ public:
 	bool getShowProgressBarAsOverlay() { return _showProgressBarAsOverlay; }
 	float getAnamorphicFactor() { return _anamorphicFactor; }
 	float getRingAngleOffset() { return _ringAngleOffset; }
-	float getSphericalAberrationFactor() { return _sphericalAberrationFactor; }
 	float getSphericalAberrationDimFactor() { return _sphericalAberrationDimFactor; }
 
 	MagnifierSettings& getMagnifierSettings() { return _magnificationSettings; }		// this is a bit dirty...
@@ -250,12 +244,11 @@ private:
 	/// </summary>
 	void handlePresentAfterReshadeEffects();
 	/// <summary>
-	/// Calculates the spherical aberration factor to use for camera steps using the actual current ring in the shape and teh start ring number that's boosted
+	/// Calculates the spherical aberration factor to use for camera steps using the actual current ring in the shape
 	/// </summary>
-	/// <param name="startRingBoosted"></param>
 	/// <param name="ringNo"></param>
 	/// <returns></returns>
-	float calculateSphericalAberrationFactorToUse(const int startRingBoosted, int ringNo);
+	float calculateSphericalAberrationFactorToUse(int ringNo);
 	/// <summary>
 	/// Method which will setup the frame for blending, moving the camera, configuring the shader.
 	/// </summary>
@@ -280,9 +273,8 @@ private:
 	float _yAlignmentDelta = 0.0f;		// for the shader, the alignment y delta to use
 	float _highlightBoostFactor = 0.9f;
 	float _highlightGammaFactor = 2.2f;
-	float _highLightBoostForFrame = 0.0f;
-	float _sphericalAberrationFactor = 0.0f;
-	float _sphericalAberrationDimFactor = 0.5f;
+	float _sphericalAberrationDimFactor = 0.5f; //dim factor as intensity, 0% to 100% for center sample
+	float _sphericalAberrationDimFactorForFrame = 1.0f; //per-sample weight for spherical aberration
 	MagnifierSettings _magnificationSettings;
 
 	int _onPresentWorkCounter = 0;		// if 0, reshadeBeginEffectsCalled will call onPresentWorkFunc (if set), otherwise this counter is decreased.
