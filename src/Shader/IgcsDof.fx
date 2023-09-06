@@ -208,12 +208,11 @@ namespace IgcsDOF
 	}
 
 
-	void PS_HandleStateStart(float4 vpos : SV_Position, float2 texcoord : TEXCOORD, out float3 fragment0 : SV_Target0)
+	void PS_HandleStateStart(float4 vpos : SV_Position, float2 texcoord : TEXCOORD, out float3 fragment : SV_Target0)
 	{
 		if(SessionState==1)
 		{
-			float3 currentFragment = tex2Dlod(ReShade::BackBuffer, float4(texcoord, 0, 0)).rgb;
-			fragment0 = AccentuateWhites(currentFragment);
+			fragment = tex2Dlod(ReShade::BackBuffer, float4(texcoord, 0, 0)).rgb;
 		}
 		else
 		{
@@ -227,7 +226,7 @@ namespace IgcsDOF
 		if(SessionState==2)
 		{
 			float3 currentFragment = tex2Dlod(ReShade::BackBuffer, float4(texcoord.x - FocusDelta, texcoord.y, 0, 0)).rgb;
-			float3 cachedFragment = CorrectForWhiteAccentuation(tex2Dlod(SamplerBlendAccumulate, float4(texcoord, 0, 0)).rgb); //undo cached accentuation
+			float3 cachedFragment = tex2Dlod(SamplerBlendAccumulate, float4(texcoord, 0, 0)).rgb;
 			fragment = lerp(cachedFragment, currentFragment, SetupAlpha);
 		}
 		else

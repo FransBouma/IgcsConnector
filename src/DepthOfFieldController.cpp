@@ -284,7 +284,7 @@ void DepthOfFieldController::performRenderFrameSetupWork()
 	_yAlignmentDelta = currentFrameData.yAlignmentDelta;
 	_frameWaitCounter = _numberOfFramesToWaitPerFrame;
 	_blendFactor = 1.0f / (static_cast<float>(_currentFrame) + 1.0f);		// frame start at 0 so +1, to get 1/1=100% blend factor for first frame
-	_sphericalAberrationDimFactorForFrame = currentFrameData.busyBokehFactor;
+	_sphericalAberrationDimFactorForFrame = currentFrameData.busyBokehFactor * _cameraSteps.size(); //since the lerp blending implicitly already divides the sum by N, we must not do it again, so compensate
 	// Set the framestate to wait so the counter will take effect.
 	_renderFrameState = DepthOfFieldRenderFrameState::FrameWait;
 }
@@ -444,11 +444,10 @@ void DepthOfFieldController::createCircleDoFPoints()
 		pointsOnRing += pointsFirstRing;
 	}
 
-	//renormalize busy bokeh weights so they do not scale the exposure
-	totalWeight *= _cameraSteps.size(); //since the lerp logic in the shader already implicitly divides by the amount of samples, we must not do it again
+	//renormalize busy bokeh weights so they do not scale the exposure	
 	for(auto& step : _cameraSteps)
 	{
-		step.busyBokehFactor /= totalWeight;
+		step.busyBokehFactor /= totalWeight;		
 	}
 
 	switch(_renderOrder)
@@ -532,11 +531,10 @@ void DepthOfFieldController::createApertureShapedDoFPoints()
 		}
 	}
 
-	//renormalize busy bokeh weights so they do not scale the exposure
-	totalWeight *= _cameraSteps.size(); //since the lerp logic in the shader already implicitly divides by the amount of samples, we must not do it again
+	//renormalize busy bokeh weights so they do not scale the exposure	
 	for(auto& step : _cameraSteps)
 	{
-		step.busyBokehFactor /= totalWeight;
+		step.busyBokehFactor /= totalWeight;		
 	}
 
 	switch(_renderOrder)
@@ -642,9 +640,20 @@ void DepthOfFieldController::drawShape(ImDrawList* drawList, ImVec2 topLeftScree
 	float maxBokehRadius = _maxBokehSize / 2.0f;
 	maxBokehRadius = maxBokehRadius < FLT_EPSILON ? 1.0f : maxBokehRadius;
 
+	//spherical aberration weights are normalized to sum up to 1, meaning if inner samples are weighted < 1, outer samples must be weighted > 1
+	//but since we can't display values > 1, we need to figure out the maximum value. As we might have shuffled them for random order rendering
+	//we can't just take the busy bokeh factor of innermost or outermost ring.
+	//TODO calculate this before finalizing bokeh samples and use here.
+	float maxBrightness = 0.0f;
 	for(const auto& step : _cameraSteps)
 	{
-		ImColor dotColor = ImColor(step.busyBokehFactor, step.busyBokehFactor, step.busyBokehFactor);
+		maxBrightness = std::max(maxBrightness, step.busyBokehFactor);
+	}
+
+	for(const auto& step : _cameraSteps)
+	{
+		float dotBrightness = step.busyBokehFactor / maxBrightness; 
+		ImColor dotColor = ImColor(dotBrightness, dotBrightness, dotBrightness);
 		// our (0,0) for rendering is top left, however the (0, 0) for the canvas is bottom left.
 		drawList->AddCircleFilled(ImVec2(x + ((step.xDelta / maxBokehRadius) * maxRadius), y - ((step.yDelta / maxBokehRadius) * maxRadius)), 1.5f, dotColor);
 	}
