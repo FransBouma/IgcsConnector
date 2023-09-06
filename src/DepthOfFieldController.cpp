@@ -373,7 +373,7 @@ void DepthOfFieldController::handlePresentAfterReshadeEffects()
 }
 
 
-float DepthOfFieldController::calculateSphericalAberrationFactorToUse(int ringNo)
+float DepthOfFieldController::calculateSphericalAberrationFactorToUse(float radiusNormalized)
 {
 	float toReturn = 1.0f;
 
@@ -382,7 +382,6 @@ float DepthOfFieldController::calculateSphericalAberrationFactorToUse(int ringNo
 	//emulated by modifying the camera angles and correctly deliver inverted bokeh in foreground, 
 	//however this would yield blurry focal areas which we don't want. So approximate it with sample masking
 
-	float radiusNormalized = float(ringNo) / _quality;
 	float aberrationCurve = radiusNormalized * radiusNormalized;
 	aberrationCurve *= aberrationCurve; 
 
@@ -413,7 +412,7 @@ void DepthOfFieldController::createCircleDoFPoints()
 	float totalWeight = 0.0f;
 
 	//center	
-	const float sphericalAberrationFactorTouse = calculateSphericalAberrationFactorToUse(0); 
+	const float sphericalAberrationFactorTouse = calculateSphericalAberrationFactorToUse(0.0f); 
 	_cameraSteps.push_back({0.0f, 0.0f, 0.0f, 0.0f, sphericalAberrationFactorTouse});
 	totalWeight += sphericalAberrationFactorTouse;
 
@@ -426,7 +425,7 @@ void DepthOfFieldController::createCircleDoFPoints()
 		const float anglePerPoint = 6.28318530717958f / pointsOnRing;
 		float angle = anglePerPoint + ((float)ringNo * _ringAngleOffset);
 		const float ringDistance = (float)ringNo / (float)_quality;
-		const float sphericalAberrationFactorTouse = calculateSphericalAberrationFactorToUse(ringNo);
+		const float sphericalAberrationFactorTouse = calculateSphericalAberrationFactorToUse(ringDistance);
 		for(int pointNumber = 0;pointNumber<pointsOnRing;pointNumber++)
 		{
 			const float sinAngle = sin(angle);
@@ -474,7 +473,7 @@ void DepthOfFieldController::createApertureShapedDoFPoints()
 	float totalWeight = 0.0f;
 
 	//center	
-	const float sphericalAberrationFactorTouse = calculateSphericalAberrationFactorToUse(0); 
+	const float sphericalAberrationFactorTouse = calculateSphericalAberrationFactorToUse(0.0f); 
 	_cameraSteps.push_back({0.0f, 0.0f, 0.0f, 0.0f, sphericalAberrationFactorTouse});
 	totalWeight += sphericalAberrationFactorTouse;
 
@@ -494,8 +493,7 @@ void DepthOfFieldController::createApertureShapedDoFPoints()
 	{
 		// ring angle offset is applied stronger on inner rings than on outer rings, to keep the outer ring from staying in the same place. 
 		float vertexAngle = fmod(anglePerVertex + (_apertureShapeSettings.RotationAngle * 6.28318530717958f) + ((float)(_quality-ringNo) * _ringAngleOffset), 6.28318530717958f);
-		const float ringDistance = (float)ringNo / (float)_quality;
-		const float sphericalAberrationFactorTouse = calculateSphericalAberrationFactorToUse(ringNo);
+		const float ringDistance = (float)ringNo / (float)_quality;		
 		for(int vertexNo = 0; vertexNo < _apertureShapeSettings.NumberOfVertices; vertexNo++)
 		{
 			const float sinAngleCurrentVertex = sin(vertexAngle);
@@ -503,9 +501,9 @@ void DepthOfFieldController::createApertureShapedDoFPoints()
 			const float nextVertexAngle = fmod(vertexAngle + anglePerVertex, 6.28318530717958f);
 			const float sinAngleNextVertex = sin(nextVertexAngle);
 			const float cosAngleNextVertex = cos(nextVertexAngle);
-			const float xCurrentVertex = ringDistance * cosAngleCurrentVertex * _anamorphicFactor;
+			const float xCurrentVertex = ringDistance * cosAngleCurrentVertex;
 			const float yCurrentVertex = ringDistance * sinAngleCurrentVertex;
-			const float xNextVertex = ringDistance * cosAngleNextVertex * _anamorphicFactor;
+			const float xNextVertex = ringDistance * cosAngleNextVertex;
 			const float yNextVertex = ringDistance * sinAngleNextVertex;
 			const float pointStepSize = 1.0f / (float)ringNo;
 			float pointStep = pointStepSize;
@@ -514,12 +512,18 @@ void DepthOfFieldController::createApertureShapedDoFPoints()
 				const float pointAngle = IGCS::Utils::lerp(vertexAngle, vertexAngle + anglePerVertex, pointStep);
 				const float sinPointAngle = sin(pointAngle);
 				const float cosPointAngle = cos(pointAngle);
-				const float xRoundPoint = ringDistance * cosPointAngle * _anamorphicFactor;
+				const float xRoundPoint = ringDistance * cosPointAngle;
 				const float yRoundPoint = ringDistance * sinPointAngle;
 				const float xLinePoint = IGCS::Utils::lerp(xCurrentVertex, xNextVertex, pointStep);
 				const float yLinePoint = IGCS::Utils::lerp(yCurrentVertex, yNextVertex, pointStep);
-				const float x = IGCS::Utils::lerp(xLinePoint, xRoundPoint, _apertureShapeSettings.RoundFactor);
-				const float y = IGCS::Utils::lerp(yLinePoint, yRoundPoint, _apertureShapeSettings.RoundFactor);
+				float x = IGCS::Utils::lerp(xLinePoint, xRoundPoint, _apertureShapeSettings.RoundFactor);
+				float y = IGCS::Utils::lerp(yLinePoint, yRoundPoint, _apertureShapeSettings.RoundFactor);
+				//cannot use ringDistance in polygonal mode, as spherical aberration is purely a factor of radius and ringDistance follows aperture shape
+				//hence use euclidean distance from center instead. However, spherical aberration happens before anamorphic film squeeze
+				//as the anamorphic lens is the last lens in front of the sensor/film
+				const float radiusNormalized = sqrtf(x * x + y * y); 
+				const float sphericalAberrationFactorTouse = calculateSphericalAberrationFactorToUse(radiusNormalized);
+				x *= _anamorphicFactor; //apply scaling here after calculating spherical aberration
 				const float xDelta = maxBokehRadius * x;
 				const float yDelta = maxBokehRadius * y;
 				_cameraSteps.push_back({ xDelta, yDelta, x * -focusDeltaHalf, y * focusDeltaHalf, sphericalAberrationFactorTouse });

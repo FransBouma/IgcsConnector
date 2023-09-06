@@ -248,7 +248,7 @@ private:
 	/// </summary>
 	/// <param name="ringNo"></param>
 	/// <returns></returns>
-	float calculateSphericalAberrationFactorToUse(int ringNo);
+	float calculateSphericalAberrationFactorToUse(float radiusNormalized);
 	/// <summary>
 	/// Method which will setup the frame for blending, moving the camera, configuring the shader.
 	/// </summary>
