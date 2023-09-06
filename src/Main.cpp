@@ -594,17 +594,7 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 							if(changed)
 							{
 								g_depthOfFieldController.setAnamorphicFactor(anamorphicFactor);
-							}
-							float sphericalAberrationFactor = g_depthOfFieldController.getSphericalAberrationFactor();
-							changed = ImGui::DragFloat("Spherical aberration factor", &sphericalAberrationFactor, 0.001f, 0.0f, 1.0f);
-							if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
-							{
-								ImGui::SetTooltip("The factor for dimming center pixels in bokeh highlights\n0 means no pixels are dimmed, 1.0 means only the outer ring isn't dimmed.");
-							}
-							if(changed)
-							{
-								g_depthOfFieldController.setSphericalAberrationFactor(sphericalAberrationFactor);
-							}
+							}							
 							float sphericalAberrationDimFactor = g_depthOfFieldController.getSphericalAberrationDimFactor();
 							changed = ImGui::DragFloat("Spherical aberration dim factor", &sphericalAberrationDimFactor, 0.001f, 0.0f, 1.0f);
 							if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
