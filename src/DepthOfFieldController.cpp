@@ -285,7 +285,7 @@ void DepthOfFieldController::performRenderFrameSetupWork()
 	_xAlignmentDelta = currentFrameData.xAlignmentDelta;
 	_yAlignmentDelta = currentFrameData.yAlignmentDelta;
 	_frameWaitCounter = _numberOfFramesToWaitPerFrame;
-	_blendFactor = 1.0f / (static_cast<float>(_currentFrame) + 2.0f);		// frame start at 0 so +1, and we have to blend the original too, so +1
+	_blendFactor = 1.0f / (static_cast<float>(_currentFrame) + 1.0f);		// frame start at 0 so +1, to get 1/1=100% blend factor for first frame
 	_highLightBoostForFrame = _highlightBoostFactor * currentFrameData.busyBokehFactor;
 	// Set the framestate to wait so the counter will take effect.
 	_renderFrameState = DepthOfFieldRenderFrameState::FrameWait;
@@ -395,6 +395,8 @@ void DepthOfFieldController::createCircleDoFPoints()
 {
 	_cameraSteps.clear();
 
+	_cameraSteps.push_back({0.0f, 0.0f, 0.0f, 0.0f, 1.0f}); //center
+
 	const float pointsFirstRing = (float)_numberOfPointsInnermostRing;
 	float pointsOnRing = pointsFirstRing;
 	const float maxBokehRadius = _maxBokehSize / 2.0f;
@@ -442,6 +444,7 @@ void DepthOfFieldController::createCircleDoFPoints()
 void DepthOfFieldController::createApertureShapedDoFPoints()
 {
 	_cameraSteps.clear();
+	_cameraSteps.push_back({0.0f, 0.0f, 0.0f, 0.0f, 1.0f}); //center
 
 	// sanitize input for 4 vertex elements
 	if(4 == _apertureShapeSettings.NumberOfVertices)
