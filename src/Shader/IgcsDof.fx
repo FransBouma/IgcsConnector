@@ -189,6 +189,9 @@ namespace IgcsDOF
 	texture texBlendAccumulate 		{ Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = RGBA32F; };
 	sampler SamplerBlendAccumulate	{ Texture = texBlendAccumulate; MagFilter = POINT; MinFilter = POINT; MipFilter = POINT; };
 
+	texture texColorHDR 			{ Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = RGBA16F; };
+	sampler SamplerColorHDR			{ Texture = texColorHDR; };
+
 
 	float3 ConeOverlap(float3 fragment)
 	{
@@ -212,8 +215,7 @@ namespace IgcsDOF
 		// De-tonemap color (reinhard). Thanks Marty :) 
 		fragment = pow(abs(ConeOverlap(fragment)), HighlightGammaFactor);
 		return fragment / max((1.001 - (HighlightBoost * fragment)), 0.001);
-	}	
-
+	}
 	
 	float3 CorrectForWhiteAccentuation(float3 fragment)
 	{
@@ -222,6 +224,56 @@ namespace IgcsDOF
 		return ConeOverlapInverse(pow(abs(toReturn), 1.0/ HighlightGammaFactor));
 	}
 
+	float4 bicubic_catmullrom(in sampler tex, in float2 uv, in float2 texsize)
+	{
+		float2 UV =  uv * texsize;
+		float2 tc = floor(UV - 0.5) + 0.5;
+		float2 f = UV - tc;
+		float2 f2 = f * f; 
+		float2 f3 = f2 * f;
+		
+		float2 w0 = f2 - 0.5 * (f3 + f);
+		float2 w1 = 1.5 * f3 - 2.5 * f2 + 1.0;
+		float2 w3 = 0.5 * (f3 - f2);
+		float2 w12 = 1.0 - w0 - w3;
+
+		float4 ws[3];    
+		ws[0].xy = w0;
+		ws[1].xy = w12;
+		ws[2].xy = w3;
+
+		ws[0].zw = tc - 1.0;
+		ws[1].zw = tc + 1.0 - w1 / w12;
+		ws[2].zw = tc + 2.0;
+
+		ws[0].zw /= texsize;
+		ws[1].zw /= texsize;
+		ws[2].zw /= texsize;
+
+		float4 ret;
+		ret  = tex2Dlod(tex, float4(ws[1].z, ws[0].w, 0, 0)) * ws[1].x * ws[0].y;    
+		ret += tex2Dlod(tex, float4(ws[0].z, ws[1].w, 0, 0)) * ws[0].x * ws[1].y;    
+		ret += tex2Dlod(tex, float4(ws[1].z, ws[1].w, 0, 0)) * ws[1].x * ws[1].y;    
+		ret += tex2Dlod(tex, float4(ws[2].z, ws[1].w, 0, 0)) * ws[2].x * ws[1].y;    
+		ret += tex2Dlod(tex, float4(ws[1].z, ws[2].w, 0, 0)) * ws[1].x * ws[2].y;    
+		float normfact = 1.0 / (1.0 - (f.x - f2.x)*(f.y - f2.y) * 0.25); //PG23: closed form for the weight sum
+		return max(0, ret * normfact);   
+	}
+
+	//to avoid moire, ramp texture into HDR first. Then, a bilinear fetch will interpolate already detonemapped samples
+	//rather than detonemapping after interpolating.
+	void PS_CreateHDRInput(float4 vpos : SV_Position, float2 texcoord : TEXCOORD, out float3 fragment : SV_Target0)
+	{
+		if(SessionState==3)
+		{
+			fragment = AccentuateWhites(tex2Dlod(ReShade::BackBuffer, float4(texcoord, 0, 0)).rgb);
+		}	
+		else 
+		{
+			discard;
+		}
+		
+	}
 
 	void PS_HandleStateStart(float4 vpos : SV_Position, float2 texcoord : TEXCOORD, out float3 fragment : SV_Target0)
 	{
@@ -234,8 +286,7 @@ namespace IgcsDOF
 			discard;
 		}
 	}
-
-
+	
 	void PS_HandleStateSetup(float4 vpos : SV_Position, float2 texcoord : TEXCOORD, out float3 fragment : SV_Target0)
 	{
 		if(SessionState==2)
@@ -249,7 +300,6 @@ namespace IgcsDOF
 			discard;
 		}
 	}
-
 
 	void PS_HandleMagnification(float4 vpos : SV_Position, float2 texcoord : TEXCOORD, out float4 fragment : SV_Target0)
 	{
@@ -265,8 +315,7 @@ namespace IgcsDOF
 				fragment = tex2Dlod(BackBufferPoint, float4(sourceCoord, 0, 0));
 			}
 		}
-	}	
-
+	}
 	
 	void PS_HandleStateRender(float4 vpos : SV_Position, float2 texcoord : TEXCOORD, out float4 fragment : SV_Target0)
 	{
@@ -280,8 +329,7 @@ namespace IgcsDOF
 				bool isInside = all(saturate(texCoordToReadFrom - texCoordToReadFrom*texCoordToReadFrom));
 				if(isInside)
 				{
-					float3 currentFragment = tex2Dlod(ReShade::BackBuffer, float4(texCoordToReadFrom, 0.0f, 0.0f)).rgb;
-					currentFragment = AccentuateWhites(currentFragment);
+					float3 currentFragment = tex2Dlod(SamplerColorHDR, float4(texCoordToReadFrom, 0.0f, 0.0f)).rgb;
 					currentFragment *= float3(SampleWeightR, SampleWeightG, SampleWeightB); 
 					fragment = float4(currentFragment, BlendFactor);
 				}				
@@ -329,6 +377,10 @@ namespace IgcsDOF
 			"https://opm.fransbouma.com | https://github.com/FransBouma/IgcsConnector"; >
 #endif
 	{
+		pass RampIntoHDRPass { 			
+			VertexShader = PostProcessVS; PixelShader = PS_CreateHDRInput; RenderTarget = texColorHDR;
+		}
+
 		pass HandleStateStartPass { 
 			// If state is 'Start': backups original framebuffer to texBlendAccumulate
 			// If state isn't 'Start': it'll discard the pixel.
