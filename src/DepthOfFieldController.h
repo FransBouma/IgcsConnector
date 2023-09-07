@@ -57,7 +57,8 @@ class DepthOfFieldController
 		float yDelta = 0.0f;
 		float xAlignmentDelta = 0.0f;
 		float yAlignmentDelta = 0.0f;
-		float busyBokehFactor = 1.0f;
+
+		float sampleWeightRGB[3] = {1.0f, 1.0f, 1.0f};
 	};
 
 	struct MagnifierSettings
@@ -247,8 +248,9 @@ private:
 	/// Calculates the spherical aberration factor to use for camera steps using the actual current ring in the shape
 	/// </summary>
 	/// <param name="ringNo"></param>
+	/// <param name="weightsRGB"></param>
 	/// <returns></returns>
-	float calculateSphericalAberrationFactorToUse(float radiusNormalized);
+	void applySphericalAberration(float radiusNormalized, CameraLocation& sample);
 	/// <summary>
 	/// Method which will setup the frame for blending, moving the camera, configuring the shader.
 	/// </summary>
@@ -274,7 +276,9 @@ private:
 	float _highlightBoostFactor = 0.9f;
 	float _highlightGammaFactor = 2.2f;
 	float _sphericalAberrationDimFactor = 0.5f; //dim factor as intensity, 0% to 100% for center sample
-	float _sphericalAberrationDimFactorForFrame = 1.0f; //per-sample weight for spherical aberration
+	//float _sphericalAberrationDimFactorForFrame = 1.0f; //per-sample weight for spherical aberration
+	float _sampleWeightRGB[3] = {1.0f, 1.0f, 1.0f};
+
 	MagnifierSettings _magnificationSettings;
 
 	int _onPresentWorkCounter = 0;		// if 0, reshadeBeginEffectsCalled will call onPresentWorkFunc (if set), otherwise this counter is decreased.

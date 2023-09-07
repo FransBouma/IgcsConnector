@@ -65,12 +65,27 @@ namespace IgcsDOF
 		ui_step = 0.001;
 		hidden=true;
 	> = 0.50;
-	uniform float SphericalAberrationDimFactorForFrame <
-		ui_category = "Spherical Aberration";
-		ui_label="Spherical Aberration Dim Factor for Frame";
+	uniform float SampleWeightR <
+		ui_category = "Sample Weight Red";
+		ui_label="Sample Weight for Red Channel for current sample";
 		ui_type = "drag";
-		ui_min = 0.00; ui_max = 1.00;
-		ui_tooltip = "Will weight each frame to produce spherical aberration";
+		ui_min = 0.00; ui_max = 10.00;
+		ui_step = 0.001;
+		hidden=true;
+	> = 1.0;
+	uniform float SampleWeightG <
+		ui_category = "Sample Weight Green";
+		ui_label="Sample Weight for Green Channel for current sample";
+		ui_type = "drag";
+		ui_min = 0.00; ui_max = 10.00;
+		ui_step = 0.001;
+		hidden=true;
+	> = 1.0;
+	uniform float SampleWeightB <
+		ui_category = "Sample Weight Blue";
+		ui_label="Sample Weight for Blue Channel for current sample";
+		ui_type = "drag";
+		ui_min = 0.00; ui_max = 10.00;
 		ui_step = 0.001;
 		hidden=true;
 	> = 1.0;
@@ -267,7 +282,7 @@ namespace IgcsDOF
 				{
 					float3 currentFragment = tex2Dlod(ReShade::BackBuffer, float4(texCoordToReadFrom, 0.0f, 0.0f)).rgb;
 					currentFragment = AccentuateWhites(currentFragment);
-					currentFragment *= SphericalAberrationDimFactorForFrame; //adjust exposure of current sample here
+					currentFragment *= float3(SampleWeightR, SampleWeightG, SampleWeightB); 
 					fragment = float4(currentFragment, BlendFactor);
 				}				
 			}					
