@@ -606,6 +606,28 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 								g_depthOfFieldController.setSphericalAberrationDimFactor(sphericalAberrationDimFactor);
 							}
 
+							float fringeIntensity = g_depthOfFieldController.getFringeIntensity();
+							changed = ImGui::DragFloat("Fringe Intensity", &fringeIntensity, 0.001f, 0.0f, 1.0f);
+							if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+							{
+								ImGui::SetTooltip("Intensity of bokeh outline");
+							}
+							if(changed)
+							{
+								g_depthOfFieldController.setFringeIntensity(fringeIntensity);
+							}
+
+							float fringeWidth = g_depthOfFieldController.getFringeWidth();
+							changed = ImGui::DragFloat("Fringe Width", &fringeWidth, 0.001f, 0.0f, 1.0f);
+							if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+							{
+								ImGui::SetTooltip("Width of bokeh outline");
+							}
+							if(changed)
+							{
+								g_depthOfFieldController.setFringeWidth(fringeWidth);
+							}
+
 							int renderOrder = (int)g_depthOfFieldController.getRenderOrder();
 							changed = ImGui::Combo("Render order", &renderOrder, "Inner to outer ring\0Outer to inner ring\0Random\0\0");
 							if(changed)

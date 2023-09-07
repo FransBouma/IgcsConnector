@@ -147,6 +147,8 @@ void DepthOfFieldController::loadIniFileData(CDataFile& iniFile)
 	loadFloatFromIni(iniFile, "RotationAngle", &_apertureShapeSettings.RotationAngle);
 	loadFloatFromIni(iniFile, "RoundFactor", &_apertureShapeSettings.RoundFactor);
 	loadFloatFromIni(iniFile, "SphericalAberrationDimFactor", &_sphericalAberrationDimFactor);
+	loadFloatFromIni(iniFile, "FringeIntensity", &_fringeIntensity);
+	loadFloatFromIni(iniFile, "FringeWidth", &_fringeWidth);
 	loadIntFromIni(iniFile, "NumberOfVertices", &_apertureShapeSettings.NumberOfVertices);
 	loadIntFromIni(iniFile, "Quality", &_quality);
 	loadIntFromIni(iniFile, "NumberOfPointsInnermostRing", &_numberOfPointsInnermostRing);
@@ -171,6 +173,8 @@ void DepthOfFieldController::saveIniFileData(CDataFile& iniFile)
 	iniFile.SetFloat("RotationAngle", _apertureShapeSettings.RotationAngle, "", "DepthOfField");
 	iniFile.SetFloat("RoundFactor", _apertureShapeSettings.RoundFactor, "", "DepthOfField");
 	iniFile.SetFloat("SphericalAberrationDimFactor", _sphericalAberrationDimFactor, "", "DepthOfField");
+	iniFile.SetFloat("FringeIntensity", _fringeIntensity, "", "DepthOfField");
+	iniFile.SetFloat("FringeWidth", _fringeWidth, "", "DepthOfField");
 	iniFile.SetInt("NumberOfVertices", _apertureShapeSettings.NumberOfVertices, "", "DepthOfField");
 	iniFile.SetInt("Quality", _quality, "", "DepthOfField");
 	iniFile.SetInt("NumberOfPointsInnermostRing", _numberOfPointsInnermostRing, "", "DepthOfField");
@@ -401,6 +405,22 @@ void DepthOfFieldController::applySphericalAberration(float radiusNormalized, Ca
 	sample.sampleWeightRGB[2] *= aberrationFactor;
 }
 
+void DepthOfFieldController::applyFringe(float ringRadiusNormalized, int numRings, CameraLocation& sample)
+{
+	float transitionWidth = 0.5f / numRings;
+	//perform a linear step with the spacing of a ring radius 
+	
+	//(x-a)/(b-a)
+	float fringeRampStart = 1.0f - _fringeWidth - transitionWidth;
+	float fringeRampEnd   = 1.0f - _fringeWidth + transitionWidth;
+	float fringeMask = std::clamp((ringRadiusNormalized - fringeRampStart) / (fringeRampEnd - fringeRampStart), 0.0f, 1.0f);
+
+	float fringeFactor = (1.0f - _fringeIntensity) * (1.0f - fringeMask) + fringeMask * 1.0f;
+
+	sample.sampleWeightRGB[0] *= fringeFactor;
+	sample.sampleWeightRGB[1] *= fringeFactor;
+	sample.sampleWeightRGB[2] *= fringeFactor;
+}
 
 void DepthOfFieldController::createCircleDoFPoints()
 {
@@ -408,6 +428,7 @@ void DepthOfFieldController::createCircleDoFPoints()
 
 	CameraLocation center = {0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f};
 	applySphericalAberration(0.0f, center);	
+	applyFringe(0.0f, _quality, center);	
 	_cameraSteps.push_back(center);
 
 	const float pointsFirstRing = (float)_numberOfPointsInnermostRing;
@@ -429,7 +450,8 @@ void DepthOfFieldController::createCircleDoFPoints()
 			const float yDelta = maxBokehRadius * y;
 
 			CameraLocation sample = {xDelta, yDelta, x * -focusDeltaHalf, y * focusDeltaHalf, 1.0f, 1.0f, 1.0f};	
-			applySphericalAberration(ringDistance, sample);	
+			applySphericalAberration(ringDistance, sample);
+			applyFringe(ringDistance, _quality, sample);
 			_cameraSteps.push_back(sample);
 
 			angle += anglePerPoint;
@@ -476,7 +498,8 @@ void DepthOfFieldController::createApertureShapedDoFPoints()
 	_cameraSteps.clear();
 
 	CameraLocation center = {0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f};
-	applySphericalAberration(0.0f, center);	
+	applySphericalAberration(0.0f, center);
+	applyFringe(0.0f, _quality, center);
 	_cameraSteps.push_back(center);
 
 	// sanitize input for 4 vertex elements
@@ -529,6 +552,7 @@ void DepthOfFieldController::createApertureShapedDoFPoints()
 				const float yDelta = maxBokehRadius * y;
 				CameraLocation sample = {xDelta, yDelta, x * -focusDeltaHalf, y * focusDeltaHalf, 1.0f, 1.0f, 1.0f};	
 				applySphericalAberration(radiusNormalized, sample);	
+				applyFringe(ringDistance, _quality, sample);
 				_cameraSteps.push_back(sample);
 				pointStep += pointStepSize;
 			}

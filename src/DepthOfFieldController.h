@@ -182,6 +182,16 @@ public:
 		_sphericalAberrationDimFactor = IGCS::Utils::clampEx(newValue, 0.0f, 1.0f);
 		calculateShapePoints();
 	}
+	void setFringeIntensity(float newValue)
+	{
+		_fringeIntensity = IGCS::Utils::clampEx(newValue, 0.0f, 1.0f);
+		calculateShapePoints();
+	}
+	void setFringeWidth(float newValue)
+	{
+		_fringeWidth = IGCS::Utils::clampEx(newValue, 0.0f, 1.0f);
+		calculateShapePoints();
+	}
 	void setRenderOrder(DepthOfFieldRenderOrder newValue)
 	{
 		_renderOrder = newValue;
@@ -208,6 +218,8 @@ public:
 	float getAnamorphicFactor() { return _anamorphicFactor; }
 	float getRingAngleOffset() { return _ringAngleOffset; }
 	float getSphericalAberrationDimFactor() { return _sphericalAberrationDimFactor; }
+	float getFringeIntensity() { return _fringeIntensity; }
+	float getFringeWidth() { return _fringeWidth; }
 
 	MagnifierSettings& getMagnifierSettings() { return _magnificationSettings; }		// this is a bit dirty...
 	ApertureShapeSettings& getApertureShapeSettings() { return _apertureShapeSettings; }						// same
@@ -245,12 +257,19 @@ private:
 	/// </summary>
 	void handlePresentAfterReshadeEffects();
 	/// <summary>
-	/// Calculates the spherical aberration factor to use for camera steps using the actual current ring in the shape
+	/// Modifies the sample weight for the camera steps to produce spherical aberration based on radius from center
 	/// </summary>
-	/// <param name="ringNo"></param>
+	/// <param name="radiusNormalized"></param>
 	/// <param name="weightsRGB"></param>
 	/// <returns></returns>
 	void applySphericalAberration(float radiusNormalized, CameraLocation& sample);
+	/// <summary>
+	/// Calculates the factor of the bokeh disc outline (fringe)
+	/// </summary>
+	/// <param name="radiusNormalized"></param>
+	/// <param name="weightsRGB"></param>
+	/// <returns></returns>
+	void applyFringe(float ringRadiusNormalized, int numRings, CameraLocation& sample);
 	/// <summary>
 	/// Method which will setup the frame for blending, moving the camera, configuring the shader.
 	/// </summary>
@@ -276,7 +295,8 @@ private:
 	float _highlightBoostFactor = 0.9f;
 	float _highlightGammaFactor = 2.2f;
 	float _sphericalAberrationDimFactor = 0.5f; //dim factor as intensity, 0% to 100% for center sample
-	//float _sphericalAberrationDimFactorForFrame = 1.0f; //per-sample weight for spherical aberration
+	float _fringeIntensity = 0.0f;
+	float _fringeWidth = 0.1f;
 	float _sampleWeightRGB[3] = {1.0f, 1.0f, 1.0f};
 
 	MagnifierSettings _magnificationSettings;
