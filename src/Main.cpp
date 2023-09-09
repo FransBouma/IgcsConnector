@@ -610,7 +610,7 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 							changed = ImGui::DragFloat("Fringe Intensity", &fringeIntensity, 0.001f, 0.0f, 1.0f);
 							if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
 							{
-								ImGui::SetTooltip("Intensity of bokeh outline");
+								ImGui::SetTooltip("Intensity of bokeh outline.\nUsing a value close to 1.0 could lead to having your screen go black\nduring the render phase. This is normal.");
 							}
 							if(changed)
 							{

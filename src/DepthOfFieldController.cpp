@@ -398,7 +398,7 @@ void DepthOfFieldController::applySphericalAberration(float radiusNormalized, Ca
 
 	//lerp between flat profile and curve with intensity 0 in center
 	//*0.99 -> ensure samples in center are never _exactly_ zero, this avoids issues with renormalized sample weights
-	float aberrationFactor = (1.0f - _sphericalAberrationDimFactor * 0.99f) + _sphericalAberrationDimFactor * aberrationCurve * 0.99f;
+	const float aberrationFactor = (1.0f - _sphericalAberrationDimFactor * 0.99f) + _sphericalAberrationDimFactor * aberrationCurve * 0.99f;
 
 	sample.sampleWeightRGB[0] *= aberrationFactor;
 	sample.sampleWeightRGB[1] *= aberrationFactor;
