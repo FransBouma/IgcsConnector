@@ -595,6 +595,7 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 							{
 								g_depthOfFieldController.setAnamorphicFactor(anamorphicFactor);
 							}							
+
 							float sphericalAberrationDimFactor = g_depthOfFieldController.getSphericalAberrationDimFactor();
 							changed = ImGui::DragFloat("Spherical aberration dim factor", &sphericalAberrationDimFactor, 0.001f, 0.0f, 1.0f);
 							if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
@@ -607,7 +608,7 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 							}
 
 							float fringeIntensity = g_depthOfFieldController.getFringeIntensity();
-							changed = ImGui::DragFloat("Fringe Intensity", &fringeIntensity, 0.001f, 0.0f, 1.0f);
+							changed = ImGui::DragFloat("Fringe intensity", &fringeIntensity, 0.001f, 0.0f, 1.0f);
 							if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
 							{
 								ImGui::SetTooltip("Intensity of bokeh outline.\nUsing a value close to 1.0 could lead to having your screen go black\nduring the render phase. This is normal.");
@@ -618,7 +619,7 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 							}
 
 							float fringeWidth = g_depthOfFieldController.getFringeWidth();
-							changed = ImGui::DragFloat("Fringe Width", &fringeWidth, 0.001f, 0.0f, 1.0f);
+							changed = ImGui::DragFloat("Fringe width", &fringeWidth, 0.001f, 0.0f, 1.0f);
 							if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
 							{
 								ImGui::SetTooltip("Width of bokeh outline");
@@ -626,6 +627,27 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 							if(changed)
 							{
 								g_depthOfFieldController.setFringeWidth(fringeWidth);
+							}
+
+							float caStrength = g_depthOfFieldController.getCAStrength();
+							changed = ImGui::DragFloat("Chromatic aberration strength", &caStrength, 0.000f, 0.0f, 1.0f);
+							if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+							{
+								ImGui::SetTooltip("The strength of the chromatic aberration on the edges of the bokeh highlights");
+							}
+							if(changed)
+							{
+								g_depthOfFieldController.setCAStrength(caStrength);
+							}
+							float caWidth = g_depthOfFieldController.getCAWidth();
+							changed = ImGui::DragFloat("Chromatic aberration width", &caWidth, 0.001f, 0.0f, 1.0f);
+							if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+							{
+								ImGui::SetTooltip("Width of outer edge of the bokeh highlight\nto which chromatic aberration is applied.");
+							}
+							if(changed)
+							{
+								g_depthOfFieldController.setCAWidth(caWidth);
 							}
 
 							int renderOrder = (int)g_depthOfFieldController.getRenderOrder();

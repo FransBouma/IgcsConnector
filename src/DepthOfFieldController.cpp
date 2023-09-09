@@ -405,21 +405,72 @@ void DepthOfFieldController::applySphericalAberration(float radiusNormalized, Ca
 	sample.sampleWeightRGB[2] *= aberrationFactor;
 }
 
-void DepthOfFieldController::applyFringe(float ringRadiusNormalized, int numRings, CameraLocation& sample)
+
+float DepthOfFieldController::calculateChannelDimFactor(float angleSegment, float segmentAngleMin)
 {
-	const float transitionWidth = 0.5f / numRings;
+	// using Iq's parabola using k==0.5, see: https://www.desmos.com/calculator/aszway25gw and https://iquilezles.org/articles/functions/
+	constexpr float segmentSize = 1.0f / 3.0f;
+	const float angleToSegmentNormalized = IGCS::Utils::clampEx(angleSegment - segmentAngleMin, 0.0f, segmentSize) / segmentSize;
+	return std::pow(4.0f * angleToSegmentNormalized * (1.0 - angleToSegmentNormalized), 0.5f);
+}
+
+
+void DepthOfFieldController::applyFringe(float ringRadiusNormalized, float sampleAngle, CameraLocation& sample)
+{
+	const float transitionWidth = 0.5f / (float)_quality;
 	//perform a linear step with the spacing of a ring radius 
 	
 	//(x-a)/(b-a)
 	const float fringeRampStart = 1.0f - _fringeWidth - transitionWidth;
 	const float fringeRampEnd   = 1.0f - _fringeWidth + transitionWidth;
-	const float fringeMask = std::clamp((ringRadiusNormalized - fringeRampStart) / (fringeRampEnd - fringeRampStart), 0.0f, 1.0f);
+	const float fringeMask = IGCS::Utils::clampEx((ringRadiusNormalized - fringeRampStart) / (fringeRampEnd - fringeRampStart), 0.0f, 1.0f);
+	const float fringeFactor = (1.0f - _fringeIntensity) * (1.0f - fringeMask) + fringeMask;
 
-	const float fringeFactor = (1.0f - _fringeIntensity) * (1.0f - fringeMask) + fringeMask * 1.0f;
+	const float angleSegment = sampleAngle / 6.28318530717958f;
+	// 0-0.33333: blue, 0.33333-0.6666: green, 0.6666-1: red
+	constexpr float blueSegmentMaxAngle = 1.0f / 3.0f;
+	constexpr float greenSegmentMaxAngle = 2.0f / 3.0f;
+	// factors for the dimming. 1.0 means visible, 0.0 means dimmed 100%
+	float blueFactor = 1.0f;
+	float greenFactor = 1.0f;
+	float redFactor = 1.0f;
 
-	sample.sampleWeightRGB[0] *= fringeFactor;
-	sample.sampleWeightRGB[1] *= fringeFactor;
-	sample.sampleWeightRGB[2] *= fringeFactor;
+	// cheap filter out segments and apply operands. Per segment a channel is prominent and the others are dimmed graciously
+
+	if(angleSegment <= 0.33333f)
+	{
+		// blue prominent, dim red/green
+		redFactor = 1.0f - calculateChannelDimFactor(angleSegment, 0.0f);
+		greenFactor = redFactor;
+	}
+	else
+	{
+		if(angleSegment <= 0.66666f)
+		{
+			// green prominent, dim red/blue
+			redFactor = 1.0f - calculateChannelDimFactor(angleSegment, blueSegmentMaxAngle);
+			blueFactor = redFactor;
+		}
+		else
+		{
+			// last segment
+			// red prominent, dim blue/green
+			blueFactor = 1.0f - calculateChannelDimFactor(angleSegment, greenSegmentMaxAngle);
+			greenFactor = blueFactor;
+		}
+	}
+	const float caRampStart = 1.0f - _caWidth - transitionWidth;
+	const float caRampEnd = 1.0f - _caWidth + transitionWidth;
+	const float caMask = IGCS::Utils::clampEx((ringRadiusNormalized - caRampStart) / (caRampEnd - caRampStart), 0.0f, 1.0f);
+	const float caFactor = _caStrength * caMask;
+
+	redFactor = IGCS::Utils::lerp(redFactor, 1.0f, (1.0f - caFactor));
+	blueFactor = IGCS::Utils::lerp(blueFactor, 1.0f, (1.0f - caFactor));
+	greenFactor = IGCS::Utils::lerp(greenFactor, 1.0f, (1.0f - caFactor));
+
+	sample.sampleWeightRGB[0] *= fringeFactor * redFactor;
+	sample.sampleWeightRGB[1] *= fringeFactor * greenFactor;
+	sample.sampleWeightRGB[2] *= fringeFactor * blueFactor;
 }
 
 
@@ -429,7 +480,7 @@ void DepthOfFieldController::createCircleDoFPoints()
 
 	CameraLocation center = {0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f};
 	applySphericalAberration(0.0f, center);	
-	applyFringe(0.0f, _quality, center);	
+	applyFringe(0.0f, 0.0f, center);	
 	_cameraSteps.push_back(center);
 
 	const float pointsFirstRing = (float)_numberOfPointsInnermostRing;
@@ -439,7 +490,7 @@ void DepthOfFieldController::createCircleDoFPoints()
 	for(int ringNo = 1; ringNo <= _quality; ringNo++)
 	{
 		const float anglePerPoint = 6.28318530717958f / pointsOnRing;
-		float angle = anglePerPoint + ((float)ringNo * _ringAngleOffset);
+		float angle = ((float)ringNo * _ringAngleOffset);
 		const float ringDistance = (float)ringNo / (float)_quality;
 		for(int pointNumber = 0;pointNumber<pointsOnRing;pointNumber++)
 		{
@@ -452,7 +503,7 @@ void DepthOfFieldController::createCircleDoFPoints()
 
 			CameraLocation sample = {xDelta, yDelta, x * -focusDeltaHalf, y * focusDeltaHalf, 1.0f, 1.0f, 1.0f};	
 			applySphericalAberration(ringDistance, sample);
-			applyFringe(ringDistance, _quality, sample);
+			applyFringe(ringDistance, angle, sample);
 			_cameraSteps.push_back(sample);
 
 			angle += anglePerPoint;
@@ -473,7 +524,7 @@ void DepthOfFieldController::createApertureShapedDoFPoints()
 
 	CameraLocation center = {0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f};
 	applySphericalAberration(0.0f, center);
-	applyFringe(0.0f, _quality, center);
+	applyFringe(0.0f, 0.0f, center);
 	_cameraSteps.push_back(center);
 
 	// sanitize input for 4 vertex elements
@@ -490,8 +541,9 @@ void DepthOfFieldController::createApertureShapedDoFPoints()
 	const float anglePerVertex = 6.28318530717958f / (float)_apertureShapeSettings.NumberOfVertices;
 	for(int ringNo = 1; ringNo <= _quality; ringNo++)
 	{
+		float vertexAngleForFringe = 0.0f;
 		// ring angle offset is applied stronger on inner rings than on outer rings, to keep the outer ring from staying in the same place. 
-		float vertexAngle = fmod(anglePerVertex + (_apertureShapeSettings.RotationAngle * 6.28318530717958f) + ((float)(_quality-ringNo) * _ringAngleOffset), 6.28318530717958f);
+		float vertexAngle = fmod((_apertureShapeSettings.RotationAngle * 6.28318530717958f) + ((float)(_quality-ringNo) * _ringAngleOffset), 6.28318530717958f);
 		const float ringDistance = (float)ringNo / (float)_quality;		
 		for(int vertexNo = 0; vertexNo < _apertureShapeSettings.NumberOfVertices; vertexNo++)
 		{
@@ -509,6 +561,7 @@ void DepthOfFieldController::createApertureShapedDoFPoints()
 			for(int pointNumber = 0; pointNumber < ringNo; pointNumber++)
 			{
 				const float pointAngle = IGCS::Utils::lerp(vertexAngle, vertexAngle + anglePerVertex, pointStep);
+				const float pointAngleForFringe = IGCS::Utils::lerp(vertexAngleForFringe, vertexAngleForFringe + anglePerVertex, pointStep);
 				const float sinPointAngle = sin(pointAngle);
 				const float cosPointAngle = cos(pointAngle);
 				const float xRoundPoint = ringDistance * cosPointAngle;
@@ -526,12 +579,14 @@ void DepthOfFieldController::createApertureShapedDoFPoints()
 				const float yDelta = maxBokehRadius * y;
 				CameraLocation sample = {xDelta, yDelta, x * -focusDeltaHalf, y * focusDeltaHalf, 1.0f, 1.0f, 1.0f};	
 				applySphericalAberration(radiusNormalized, sample);	
-				applyFringe(ringDistance, _quality, sample);
+				applyFringe(ringDistance, pointAngleForFringe, sample);
 				_cameraSteps.push_back(sample);
 				pointStep += pointStepSize;
 			}
 			vertexAngle += anglePerVertex;
 			vertexAngle = fmod(vertexAngle, 6.28318530717958f);
+			vertexAngleForFringe += anglePerVertex;
+			vertexAngleForFringe = fmod(vertexAngleForFringe, 6.28318530717958f);
 		}
 	}
 

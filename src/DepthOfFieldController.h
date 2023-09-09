@@ -192,6 +192,16 @@ public:
 		_fringeWidth = IGCS::Utils::clampEx(newValue, 0.0f, 1.0f);
 		calculateShapePoints();
 	}
+	void setCAStrength(float newValue)
+	{
+		_caStrength = IGCS::Utils::clampEx(newValue, 0.0f, 1.0f);
+		calculateShapePoints();
+	}
+	void setCAWidth(float newValue)
+	{
+		_caWidth = IGCS::Utils::clampEx(newValue, 0.0f, 1.0f);
+		calculateShapePoints();
+	}
 	void setRenderOrder(DepthOfFieldRenderOrder newValue)
 	{
 		_renderOrder = newValue;
@@ -220,6 +230,8 @@ public:
 	float getSphericalAberrationDimFactor() { return _sphericalAberrationDimFactor; }
 	float getFringeIntensity() { return _fringeIntensity; }
 	float getFringeWidth() { return _fringeWidth; }
+	float getCAStrength() { return _caStrength; }
+	float getCAWidth() { return _caWidth; }
 
 	MagnifierSettings& getMagnifierSettings() { return _magnificationSettings; }		// this is a bit dirty...
 	ApertureShapeSettings& getApertureShapeSettings() { return _apertureShapeSettings; }						// same
@@ -269,14 +281,22 @@ private:
 	/// Calculates the factor of the bokeh disc outline (fringe)
 	/// </summary>
 	/// <param name="ringRadiusNormalized"></param>
-	/// <param name="numRings"></param>
+	/// <param name="sampleAngle"></param>
 	/// <param name="sample"></param>
 	/// <returns></returns>
-	void applyFringe(float ringRadiusNormalized, int numRings, CameraLocation& sample);
+	void applyFringe(float ringRadiusNormalized, float sampleAngle, CameraLocation& sample);
 	/// <summary>
 	/// Method which will setup the frame for blending, moving the camera, configuring the shader.
 	/// </summary>
 	void performRenderFrameSetupWork();
+	/// <summary>
+	/// Calculates a dim factor for red/green/blue for a segment (1/3rd of the space has one channel be more prominent, the others are dimmed with this factor)
+	/// </summary>
+	/// <param name="angleSegment"></param>
+	/// <param name="segmentAngleMin"></param>
+	/// <returns></returns>
+	float calculateChannelDimFactor(float angleSegment, float segmentAngleMin);
+
 	bool isReshadeStateEmpty()
 	{
 		std::scoped_lock lock(_reshadeStateMutex);
@@ -300,6 +320,8 @@ private:
 	float _sphericalAberrationDimFactor = 0.5f; //dim factor as intensity, 0% to 100% for center sample
 	float _fringeIntensity = 0.0f;
 	float _fringeWidth = 0.1f;
+	float _caStrength = 0.0f;
+	float _caWidth = 0.1f;
 	float _sampleWeightRGB[3] = {1.0f, 1.0f, 1.0f};
 
 	MagnifierSettings _magnificationSettings;
