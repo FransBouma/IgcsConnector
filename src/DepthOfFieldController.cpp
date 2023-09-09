@@ -121,7 +121,12 @@ void DepthOfFieldController::writeVariableStateToShader(reshade::api::effect_run
 	setUniformBoolVariable(runtime, "BlendFrame", _blendFrame);
 	setUniformFloatVariable(runtime, "BlendFactor", _blendFactor);
 	setUniformFloat2Variable(runtime, "AlignmentDelta", _xAlignmentDelta, _yAlignmentDelta);
-	setUniformFloatVariable(runtime, "HighlightBoost", _highLightBoostForFrame);// _highlightBoostFactor);
+	setUniformFloatVariable(runtime, "HighlightBoost", _highlightBoostFactor);
+
+	setUniformFloatVariable(runtime, "SampleWeightR", _sampleWeightRGB[0]);
+	setUniformFloatVariable(runtime, "SampleWeightG", _sampleWeightRGB[1]);
+	setUniformFloatVariable(runtime, "SampleWeightB", _sampleWeightRGB[2]);
+
 	setUniformFloatVariable(runtime, "HighlightGammaFactor", _highlightGammaFactor);
 	setUniformBoolVariable(runtime, "ShowMagnifier", _magnificationSettings.ShowMagnifier);
 	setUniformFloatVariable(runtime, "MagnificationFactor", _magnificationSettings.MagnificationFactor);
@@ -141,8 +146,9 @@ void DepthOfFieldController::loadIniFileData(CDataFile& iniFile)
 	loadFloatFromIni(iniFile, "RingAngleOffset", &_ringAngleOffset);
 	loadFloatFromIni(iniFile, "RotationAngle", &_apertureShapeSettings.RotationAngle);
 	loadFloatFromIni(iniFile, "RoundFactor", &_apertureShapeSettings.RoundFactor);
-	loadFloatFromIni(iniFile, "SphericalAberrationFactor", &_sphericalAberrationFactor);
 	loadFloatFromIni(iniFile, "SphericalAberrationDimFactor", &_sphericalAberrationDimFactor);
+	loadFloatFromIni(iniFile, "FringeIntensity", &_fringeIntensity);
+	loadFloatFromIni(iniFile, "FringeWidth", &_fringeWidth);
 	loadIntFromIni(iniFile, "NumberOfVertices", &_apertureShapeSettings.NumberOfVertices);
 	loadIntFromIni(iniFile, "Quality", &_quality);
 	loadIntFromIni(iniFile, "NumberOfPointsInnermostRing", &_numberOfPointsInnermostRing);
@@ -166,8 +172,9 @@ void DepthOfFieldController::saveIniFileData(CDataFile& iniFile)
 	iniFile.SetFloat("RingAngleOffset", _ringAngleOffset, "", "DepthOfField");
 	iniFile.SetFloat("RotationAngle", _apertureShapeSettings.RotationAngle, "", "DepthOfField");
 	iniFile.SetFloat("RoundFactor", _apertureShapeSettings.RoundFactor, "", "DepthOfField");
-	iniFile.SetFloat("SphericalAberrationFactor", _sphericalAberrationFactor, "", "DepthOfField");
 	iniFile.SetFloat("SphericalAberrationDimFactor", _sphericalAberrationDimFactor, "", "DepthOfField");
+	iniFile.SetFloat("FringeIntensity", _fringeIntensity, "", "DepthOfField");
+	iniFile.SetFloat("FringeWidth", _fringeWidth, "", "DepthOfField");
 	iniFile.SetInt("NumberOfVertices", _apertureShapeSettings.NumberOfVertices, "", "DepthOfField");
 	iniFile.SetInt("Quality", _quality, "", "DepthOfField");
 	iniFile.SetInt("NumberOfPointsInnermostRing", _numberOfPointsInnermostRing, "", "DepthOfField");
@@ -201,7 +208,6 @@ void DepthOfFieldController::startSession(reshade::api::effect_runtime* runtime)
 	_state = DepthOfFieldControllerState::Start;
 	_renderPaused = false;
 	setUniformIntVariable(runtime, "SessionState", (int)_state);
-	_highLightBoostForFrame = _highLightBoostForFrame * (1 - _sphericalAberrationFactor);	// center pixel
 	// set framecounter to 3 so we wait 3 frames before moving on to 'Setup'
 	_onPresentWorkCounter = 3;	// wait 3 frames
 	_onPresentWorkFunc = [&](reshade::api::effect_runtime* r)
@@ -285,8 +291,13 @@ void DepthOfFieldController::performRenderFrameSetupWork()
 	_xAlignmentDelta = currentFrameData.xAlignmentDelta;
 	_yAlignmentDelta = currentFrameData.yAlignmentDelta;
 	_frameWaitCounter = _numberOfFramesToWaitPerFrame;
-	_blendFactor = 1.0f / (static_cast<float>(_currentFrame) + 2.0f);		// frame start at 0 so +1, and we have to blend the original too, so +1
-	_highLightBoostForFrame = _highlightBoostFactor * currentFrameData.busyBokehFactor;
+	_blendFactor = 1.0f / (static_cast<float>(_currentFrame) + 1.0f);		// frame start at 0 so +1, to get 1/1=100% blend factor for first frame
+
+	//since the lerp blending implicitly already divides the sum by N, we must not do it again, so compensate
+	float numSamples =  _cameraSteps.size();
+	_sampleWeightRGB[0] = currentFrameData.sampleWeightRGB[0] * numSamples;
+	_sampleWeightRGB[1] = currentFrameData.sampleWeightRGB[1] * numSamples;
+	_sampleWeightRGB[2] = currentFrameData.sampleWeightRGB[2] * numSamples;
 	// Set the framestate to wait so the counter will take effect.
 	_renderFrameState = DepthOfFieldRenderFrameState::FrameWait;
 }
@@ -375,19 +386,40 @@ void DepthOfFieldController::handlePresentAfterReshadeEffects()
 }
 
 
-float DepthOfFieldController::calculateSphericalAberrationFactorToUse(const int startRingBoosted, int ringNo)
+void DepthOfFieldController::applySphericalAberration(float radiusNormalized, CameraLocation& sample)
 {
-	float toReturn = 1.0f;
-	if(ringNo >= startRingBoosted || startRingBoosted==1)
-	{
-		toReturn = 1.0f;
-	}
-	else
-	{
-		toReturn = (((float)ringNo / (float)(startRingBoosted - 1)) * (1.0f - _sphericalAberrationDimFactor)) + (1.0f - _sphericalAberrationDimFactor);
-		toReturn = IGCS::Utils::clampEx(toReturn, 0.0f, 1.0f);
-	}
-	return toReturn;
+	//radius^4 yields plausible results, see for analysis https://jtra.cz/stuff/essays/bokeh/index.html
+	//this is theoretically incorrect, as aberration should be caused by light taking different paths, i.e. it could be
+	//emulated by modifying the camera angles and correctly deliver inverted bokeh in foreground, 
+	//however this would yield blurry focal areas which we don't want. So approximate it with sample masking
+
+	float aberrationCurve = radiusNormalized * radiusNormalized;
+	aberrationCurve *= aberrationCurve; 
+
+	//lerp between flat profile and curve with intensity 0 in center
+	//*0.99 -> ensure samples in center are never _exactly_ zero, this avoids issues with renormalized sample weights
+	float aberrationFactor = (1.0f - _sphericalAberrationDimFactor * 0.99f) + _sphericalAberrationDimFactor * aberrationCurve * 0.99f;
+
+	sample.sampleWeightRGB[0] *= aberrationFactor;
+	sample.sampleWeightRGB[1] *= aberrationFactor;
+	sample.sampleWeightRGB[2] *= aberrationFactor;
+}
+
+void DepthOfFieldController::applyFringe(float ringRadiusNormalized, int numRings, CameraLocation& sample)
+{
+	const float transitionWidth = 0.5f / numRings;
+	//perform a linear step with the spacing of a ring radius 
+	
+	//(x-a)/(b-a)
+	const float fringeRampStart = 1.0f - _fringeWidth - transitionWidth;
+	const float fringeRampEnd   = 1.0f - _fringeWidth + transitionWidth;
+	const float fringeMask = std::clamp((ringRadiusNormalized - fringeRampStart) / (fringeRampEnd - fringeRampStart), 0.0f, 1.0f);
+
+	const float fringeFactor = (1.0f - _fringeIntensity) * (1.0f - fringeMask) + fringeMask * 1.0f;
+
+	sample.sampleWeightRGB[0] *= fringeFactor;
+	sample.sampleWeightRGB[1] *= fringeFactor;
+	sample.sampleWeightRGB[2] *= fringeFactor;
 }
 
 
@@ -395,17 +427,20 @@ void DepthOfFieldController::createCircleDoFPoints()
 {
 	_cameraSteps.clear();
 
+	CameraLocation center = {0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f};
+	applySphericalAberration(0.0f, center);	
+	applyFringe(0.0f, _quality, center);	
+	_cameraSteps.push_back(center);
+
 	const float pointsFirstRing = (float)_numberOfPointsInnermostRing;
 	float pointsOnRing = pointsFirstRing;
 	const float maxBokehRadius = _maxBokehSize / 2.0f;
 	const float focusDeltaHalf = _focusDelta / 2.0f;
-	const int startRingBoosted = (int)(_sphericalAberrationFactor * (float)(_quality-1)) +1;
 	for(int ringNo = 1; ringNo <= _quality; ringNo++)
 	{
 		const float anglePerPoint = 6.28318530717958f / pointsOnRing;
 		float angle = anglePerPoint + ((float)ringNo * _ringAngleOffset);
 		const float ringDistance = (float)ringNo / (float)_quality;
-		const float sphericalAberrationFactorTouse = calculateSphericalAberrationFactorToUse(startRingBoosted, ringNo);
 		for(int pointNumber = 0;pointNumber<pointsOnRing;pointNumber++)
 		{
 			const float sinAngle = sin(angle);
@@ -414,7 +449,12 @@ void DepthOfFieldController::createCircleDoFPoints()
 			const float y = ringDistance * sinAngle;
 			const float xDelta = maxBokehRadius * x;
 			const float yDelta = maxBokehRadius * y;
-			_cameraSteps.push_back({ xDelta, yDelta, x * -focusDeltaHalf, y * focusDeltaHalf, sphericalAberrationFactorTouse});
+
+			CameraLocation sample = {xDelta, yDelta, x * -focusDeltaHalf, y * focusDeltaHalf, 1.0f, 1.0f, 1.0f};	
+			applySphericalAberration(ringDistance, sample);
+			applyFringe(ringDistance, _quality, sample);
+			_cameraSteps.push_back(sample);
+
 			angle += anglePerPoint;
 			angle = fmod(angle, 6.28318530717958f);
 		}
@@ -422,26 +462,19 @@ void DepthOfFieldController::createCircleDoFPoints()
 		pointsOnRing += pointsFirstRing;
 	}
 
-	switch(_renderOrder)
-	{
-		case DepthOfFieldRenderOrder::InnerRingToOuterRing:
-			// nothing, we're already having the points in the right order
-			break;
-		case DepthOfFieldRenderOrder::OuterRingToInnerRing:
-			// reverse the container.
-			std::ranges::reverse(_cameraSteps);
-			break;
-		case DepthOfFieldRenderOrder::Randomized:
-			std::ranges::shuffle(_cameraSteps, std::random_device());
-			break;
-		default: ;
-	}
+	renormalizeBokehWeights();
+	applyRenderOrder();
 }
 
 
 void DepthOfFieldController::createApertureShapedDoFPoints()
 {
 	_cameraSteps.clear();
+
+	CameraLocation center = {0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f};
+	applySphericalAberration(0.0f, center);
+	applyFringe(0.0f, _quality, center);
+	_cameraSteps.push_back(center);
 
 	// sanitize input for 4 vertex elements
 	if(4 == _apertureShapeSettings.NumberOfVertices)
@@ -455,13 +488,11 @@ void DepthOfFieldController::createApertureShapedDoFPoints()
 	const float maxBokehRadius = _maxBokehSize / 2.0f;
 	const float focusDeltaHalf = _focusDelta / 2.0f;
 	const float anglePerVertex = 6.28318530717958f / (float)_apertureShapeSettings.NumberOfVertices;
-	const int startRingBoosted = (int)(_sphericalAberrationFactor * (float)(_quality - 1)) + 1;
 	for(int ringNo = 1; ringNo <= _quality; ringNo++)
 	{
 		// ring angle offset is applied stronger on inner rings than on outer rings, to keep the outer ring from staying in the same place. 
 		float vertexAngle = fmod(anglePerVertex + (_apertureShapeSettings.RotationAngle * 6.28318530717958f) + ((float)(_quality-ringNo) * _ringAngleOffset), 6.28318530717958f);
-		const float ringDistance = (float)ringNo / (float)_quality;
-		const float sphericalAberrationFactorTouse = calculateSphericalAberrationFactorToUse(startRingBoosted, ringNo);
+		const float ringDistance = (float)ringNo / (float)_quality;		
 		for(int vertexNo = 0; vertexNo < _apertureShapeSettings.NumberOfVertices; vertexNo++)
 		{
 			const float sinAngleCurrentVertex = sin(vertexAngle);
@@ -469,9 +500,9 @@ void DepthOfFieldController::createApertureShapedDoFPoints()
 			const float nextVertexAngle = fmod(vertexAngle + anglePerVertex, 6.28318530717958f);
 			const float sinAngleNextVertex = sin(nextVertexAngle);
 			const float cosAngleNextVertex = cos(nextVertexAngle);
-			const float xCurrentVertex = ringDistance * cosAngleCurrentVertex * _anamorphicFactor;
+			const float xCurrentVertex = ringDistance * cosAngleCurrentVertex;
 			const float yCurrentVertex = ringDistance * sinAngleCurrentVertex;
-			const float xNextVertex = ringDistance * cosAngleNextVertex * _anamorphicFactor;
+			const float xNextVertex = ringDistance * cosAngleNextVertex;
 			const float yNextVertex = ringDistance * sinAngleNextVertex;
 			const float pointStepSize = 1.0f / (float)ringNo;
 			float pointStep = pointStepSize;
@@ -480,15 +511,23 @@ void DepthOfFieldController::createApertureShapedDoFPoints()
 				const float pointAngle = IGCS::Utils::lerp(vertexAngle, vertexAngle + anglePerVertex, pointStep);
 				const float sinPointAngle = sin(pointAngle);
 				const float cosPointAngle = cos(pointAngle);
-				const float xRoundPoint = ringDistance * cosPointAngle * _anamorphicFactor;
+				const float xRoundPoint = ringDistance * cosPointAngle;
 				const float yRoundPoint = ringDistance * sinPointAngle;
 				const float xLinePoint = IGCS::Utils::lerp(xCurrentVertex, xNextVertex, pointStep);
 				const float yLinePoint = IGCS::Utils::lerp(yCurrentVertex, yNextVertex, pointStep);
-				const float x = IGCS::Utils::lerp(xLinePoint, xRoundPoint, _apertureShapeSettings.RoundFactor);
-				const float y = IGCS::Utils::lerp(yLinePoint, yRoundPoint, _apertureShapeSettings.RoundFactor);
+				float x = IGCS::Utils::lerp(xLinePoint, xRoundPoint, _apertureShapeSettings.RoundFactor);
+				float y = IGCS::Utils::lerp(yLinePoint, yRoundPoint, _apertureShapeSettings.RoundFactor);
+				//cannot use ringDistance in polygonal mode, as spherical aberration is purely a factor of radius and ringDistance follows aperture shape
+				//hence use euclidean distance from center instead. However, spherical aberration happens before anamorphic film squeeze
+				//as the anamorphic lens is the last lens in front of the sensor/film
+				const float radiusNormalized = sqrtf(x * x + y * y); 
+				x *= _anamorphicFactor; //apply scaling here after calculating spherical aberration
 				const float xDelta = maxBokehRadius * x;
 				const float yDelta = maxBokehRadius * y;
-				_cameraSteps.push_back({ xDelta, yDelta, x * -focusDeltaHalf, y * focusDeltaHalf, sphericalAberrationFactorTouse });
+				CameraLocation sample = {xDelta, yDelta, x * -focusDeltaHalf, y * focusDeltaHalf, 1.0f, 1.0f, 1.0f};	
+				applySphericalAberration(radiusNormalized, sample);	
+				applyFringe(ringDistance, _quality, sample);
+				_cameraSteps.push_back(sample);
 				pointStep += pointStepSize;
 			}
 			vertexAngle += anglePerVertex;
@@ -496,6 +535,32 @@ void DepthOfFieldController::createApertureShapedDoFPoints()
 		}
 	}
 
+	renormalizeBokehWeights();
+	applyRenderOrder();
+}
+
+
+void DepthOfFieldController::renormalizeBokehWeights()
+{
+	//renormalize bokeh weights so they do not scale the exposure or add a tint	
+	float weightSumRGB[3] = { 0.0f, 0.0f, 0.0f };
+	for(const auto& step : _cameraSteps)
+	{
+		weightSumRGB[0] += step.sampleWeightRGB[0];
+		weightSumRGB[1] += step.sampleWeightRGB[1];
+		weightSumRGB[2] += step.sampleWeightRGB[2];
+	}
+	for(auto& step : _cameraSteps)
+	{
+		step.sampleWeightRGB[0] /= weightSumRGB[0];
+		step.sampleWeightRGB[1] /= weightSumRGB[1];
+		step.sampleWeightRGB[2] /= weightSumRGB[2];
+	}
+}
+
+
+void DepthOfFieldController::applyRenderOrder()
+{
 	switch(_renderOrder)
 	{
 		case DepthOfFieldRenderOrder::InnerRingToOuterRing:
@@ -598,12 +663,21 @@ void DepthOfFieldController::drawShape(ImDrawList* drawList, ImVec2 topLeftScree
 	const float maxRadius = (canvasWidthHeight / 2.0f)-5.0f;	// to have some space around the edge
 	float maxBokehRadius = _maxBokehSize / 2.0f;
 	maxBokehRadius = maxBokehRadius < FLT_EPSILON ? 1.0f : maxBokehRadius;
-	const float centerSpotSphericalAberrationFactorToUse = calculateSphericalAberrationFactorToUse((int)(_sphericalAberrationFactor * (float)(_quality - 1)) + 1, 1);
-	ImColor dotColor = ImColor(centerSpotSphericalAberrationFactorToUse, centerSpotSphericalAberrationFactorToUse, centerSpotSphericalAberrationFactorToUse);
-	drawList->AddCircleFilled(ImVec2(x, y), 1.5f, dotColor);	// center
+
+	//aberration weights are normalized to sum up to 1, meaning if inner samples are weighted < 1, outer samples must be weighted > 1
+	//but since we can't display values > 1, we need to figure out the maximum value. As we might have shuffled them for random order rendering
+	//we can't just take the busy bokeh factor of innermost or outermost ring.
+	float maxChannel = 0.0f; //scale all channels by the same amount
 	for(const auto& step : _cameraSteps)
 	{
-		dotColor = ImColor(step.busyBokehFactor, step.busyBokehFactor, step.busyBokehFactor);
+		maxChannel = std::max(maxChannel, step.sampleWeightRGB[0]);
+		maxChannel = std::max(maxChannel, step.sampleWeightRGB[1]);
+		maxChannel = std::max(maxChannel, step.sampleWeightRGB[2]);
+	}
+
+	for(const auto& step : _cameraSteps)
+	{
+		ImColor dotColor = ImColor(step.sampleWeightRGB[0] / maxChannel, step.sampleWeightRGB[1] / maxChannel, step.sampleWeightRGB[2] / maxChannel);
 		// our (0,0) for rendering is top left, however the (0, 0) for the canvas is bottom left.
 		drawList->AddCircleFilled(ImVec2(x + ((step.xDelta / maxBokehRadius) * maxRadius), y - ((step.yDelta / maxBokehRadius) * maxRadius)), 1.5f, dotColor);
 	}

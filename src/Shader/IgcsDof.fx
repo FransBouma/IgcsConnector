@@ -6,6 +6,8 @@
 // By Frans Bouma, aka Otis / Infuse Project (Otis_Inf)
 // https://opm.fransbouma.com 
 //
+// Additional contributions: https://github.com/FransBouma/IgcsConnector/graphs/contributors
+//
 // This shader has been released under the following license:
 //
 // Copyright (c) 2023 Frans Bouma
@@ -37,7 +39,7 @@
 
 namespace IgcsDOF
 {
-	#define IGCS_DOF_SHADER_VERSION "v1.2.1"
+	#define IGCS_DOF_SHADER_VERSION "v2.3.0"
 	
 // #define IGCS_DOF_DEBUG	
 	
@@ -65,6 +67,30 @@ namespace IgcsDOF
 		ui_step = 0.001;
 		hidden=true;
 	> = 0.50;
+	uniform float SampleWeightR <
+		ui_category = "Sample Weight Red";
+		ui_label="Sample Weight for Red Channel for current sample";
+		ui_type = "drag";
+		ui_min = 0.00; ui_max = 10.00;
+		ui_step = 0.001;
+		hidden=true;
+	> = 1.0;
+	uniform float SampleWeightG <
+		ui_category = "Sample Weight Green";
+		ui_label="Sample Weight for Green Channel for current sample";
+		ui_type = "drag";
+		ui_min = 0.00; ui_max = 10.00;
+		ui_step = 0.001;
+		hidden=true;
+	> = 1.0;
+	uniform float SampleWeightB <
+		ui_category = "Sample Weight Blue";
+		ui_label="Sample Weight for Blue Channel for current sample";
+		ui_type = "drag";
+		ui_min = 0.00; ui_max = 10.00;
+		ui_step = 0.001;
+		hidden=true;
+	> = 1.0;
 	uniform float HighlightGammaFactor <
 		ui_category = "Highlight tweaking";
 		ui_label="Highlight gamma factor";
@@ -165,6 +191,9 @@ namespace IgcsDOF
 	texture texBlendAccumulate 		{ Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = RGBA32F; };
 	sampler SamplerBlendAccumulate	{ Texture = texBlendAccumulate; MagFilter = POINT; MinFilter = POINT; MipFilter = POINT; };
 
+	texture texColorHDR 			{ Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = RGBA32F; };
+	sampler SamplerColorHDR			{ Texture = texColorHDR; };
+
 
 	float3 ConeOverlap(float3 fragment)
 	{
@@ -188,8 +217,7 @@ namespace IgcsDOF
 		// De-tonemap color (reinhard). Thanks Marty :) 
 		fragment = pow(abs(ConeOverlap(fragment)), HighlightGammaFactor);
 		return fragment / max((1.001 - (HighlightBoost * fragment)), 0.001);
-	}	
-
+	}
 	
 	float3 CorrectForWhiteAccentuation(float3 fragment)
 	{
@@ -198,27 +226,39 @@ namespace IgcsDOF
 		return ConeOverlapInverse(pow(abs(toReturn), 1.0/ HighlightGammaFactor));
 	}
 
+	//to avoid moire, ramp texture into HDR first. Then, a bilinear fetch will interpolate already detonemapped samples
+	//rather than detonemapping after interpolating.
+	void PS_CreateHDRInput(float4 vpos : SV_Position, float2 texcoord : TEXCOORD, out float3 fragment : SV_Target0)
+	{
+		if(SessionState==3)
+		{
+			fragment = AccentuateWhites(tex2Dlod(ReShade::BackBuffer, float4(texcoord, 0, 0)).rgb);
+		}	
+		else 
+		{
+			discard;
+		}
+		
+	}
 
-	void PS_HandleStateStart(float4 vpos : SV_Position, float2 texcoord : TEXCOORD, out float3 fragment0 : SV_Target0)
+	void PS_HandleStateStart(float4 vpos : SV_Position, float2 texcoord : TEXCOORD, out float3 fragment : SV_Target0)
 	{
 		if(SessionState==1)
 		{
-			float3 currentFragment = tex2Dlod(ReShade::BackBuffer, float4(texcoord, 0, 0)).rgb;
-			fragment0 = AccentuateWhites(currentFragment);
+			fragment = tex2Dlod(ReShade::BackBuffer, float4(texcoord, 0, 0)).rgb;
 		}
 		else
 		{
 			discard;
 		}
 	}
-
-
+	
 	void PS_HandleStateSetup(float4 vpos : SV_Position, float2 texcoord : TEXCOORD, out float3 fragment : SV_Target0)
 	{
 		if(SessionState==2)
 		{
 			float3 currentFragment = tex2Dlod(ReShade::BackBuffer, float4(texcoord.x - FocusDelta, texcoord.y, 0, 0)).rgb;
-			float3 cachedFragment = CorrectForWhiteAccentuation(tex2Dlod(SamplerBlendAccumulate, float4(texcoord, 0, 0)).rgb); //undo cached accentuation
+			float3 cachedFragment = tex2Dlod(SamplerBlendAccumulate, float4(texcoord, 0, 0)).rgb;
 			fragment = lerp(cachedFragment, currentFragment, SetupAlpha);
 		}
 		else
@@ -226,7 +266,6 @@ namespace IgcsDOF
 			discard;
 		}
 	}
-
 
 	void PS_HandleMagnification(float4 vpos : SV_Position, float2 texcoord : TEXCOORD, out float4 fragment : SV_Target0)
 	{
@@ -242,8 +281,7 @@ namespace IgcsDOF
 				fragment = tex2Dlod(BackBufferPoint, float4(sourceCoord, 0, 0));
 			}
 		}
-	}	
-
+	}
 	
 	void PS_HandleStateRender(float4 vpos : SV_Position, float2 texcoord : TEXCOORD, out float4 fragment : SV_Target0)
 	{
@@ -254,13 +292,10 @@ namespace IgcsDOF
 			{
 				const float2 aspectRatio = float2(1, float(BUFFER_PIXEL_SIZE.y) / float(BUFFER_PIXEL_SIZE.x));
 				float2 texCoordToReadFrom = texcoord + AlignmentDelta.xy * aspectRatio;
-				bool isInside = all(saturate(texCoordToReadFrom - texCoordToReadFrom*texCoordToReadFrom));
-				if(isInside)
-				{
-					float3 currentFragment = tex2Dlod(ReShade::BackBuffer, float4(texCoordToReadFrom, 0.0f, 0.0f)).rgb;
-					currentFragment = AccentuateWhites(currentFragment);
-					fragment = float4(currentFragment, BlendFactor);
-				}				
+				// discarding a source outside the buffer gives edge issues because distribution of energy then doesn't become 1
+				float3 currentFragment = tex2Dlod(SamplerColorHDR, float4(texCoordToReadFrom, 0.0f, 0.0f)).rgb;
+				currentFragment *= float3(SampleWeightR, SampleWeightG, SampleWeightB); 
+				fragment = float4(currentFragment, BlendFactor);
 			}					
 		}
 		else
@@ -301,10 +336,14 @@ namespace IgcsDOF
 			"uses Otis_Inf's camera tools as well as the IgcsConnector Reshade Addon\n"
 			"to produce realistic depth of field effects. This shader works only\n"
 			"with the addon and camera tools present.\n\n"
-			"IGCS DoF was written by Frans 'Otis_Inf' Bouma\n"
+			"IGCS DoF was written by Frans 'Otis_Inf' Bouma and contributors.\n"
 			"https://opm.fransbouma.com | https://github.com/FransBouma/IgcsConnector"; >
 #endif
 	{
+		pass RampIntoHDRPass { 			
+			VertexShader = PostProcessVS; PixelShader = PS_CreateHDRInput; RenderTarget = texColorHDR;
+		}
+
 		pass HandleStateStartPass { 
 			// If state is 'Start': backups original framebuffer to texBlendAccumulate
 			// If state isn't 'Start': it'll discard the pixel.

@@ -594,17 +594,7 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 							if(changed)
 							{
 								g_depthOfFieldController.setAnamorphicFactor(anamorphicFactor);
-							}
-							float sphericalAberrationFactor = g_depthOfFieldController.getSphericalAberrationFactor();
-							changed = ImGui::DragFloat("Spherical aberration factor", &sphericalAberrationFactor, 0.001f, 0.0f, 1.0f);
-							if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
-							{
-								ImGui::SetTooltip("The factor for dimming center pixels in bokeh highlights\n0 means no pixels are dimmed, 1.0 means only the outer ring isn't dimmed.");
-							}
-							if(changed)
-							{
-								g_depthOfFieldController.setSphericalAberrationFactor(sphericalAberrationFactor);
-							}
+							}							
 							float sphericalAberrationDimFactor = g_depthOfFieldController.getSphericalAberrationDimFactor();
 							changed = ImGui::DragFloat("Spherical aberration dim factor", &sphericalAberrationDimFactor, 0.001f, 0.0f, 1.0f);
 							if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
@@ -614,6 +604,28 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 							if(changed)
 							{
 								g_depthOfFieldController.setSphericalAberrationDimFactor(sphericalAberrationDimFactor);
+							}
+
+							float fringeIntensity = g_depthOfFieldController.getFringeIntensity();
+							changed = ImGui::DragFloat("Fringe Intensity", &fringeIntensity, 0.001f, 0.0f, 1.0f);
+							if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+							{
+								ImGui::SetTooltip("Intensity of bokeh outline");
+							}
+							if(changed)
+							{
+								g_depthOfFieldController.setFringeIntensity(fringeIntensity);
+							}
+
+							float fringeWidth = g_depthOfFieldController.getFringeWidth();
+							changed = ImGui::DragFloat("Fringe Width", &fringeWidth, 0.001f, 0.0f, 1.0f);
+							if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+							{
+								ImGui::SetTooltip("Width of bokeh outline");
+							}
+							if(changed)
+							{
+								g_depthOfFieldController.setFringeWidth(fringeWidth);
 							}
 
 							int renderOrder = (int)g_depthOfFieldController.getRenderOrder();
