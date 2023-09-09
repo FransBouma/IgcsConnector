@@ -245,6 +245,8 @@ private:
 	/// Create a set of circular points using nested circles, which are used to build the camera steps array
 	/// </summary>
 	void createCircleDoFPoints();
+	void applyRenderOrder();
+	void renormalizeBokehWeights();
 	void createApertureShapedDoFPoints();
 
 	void displayScreenshotSessionStartError(const ScreenshotSessionStartReturnCode sessionStartResult);
@@ -260,14 +262,15 @@ private:
 	/// Modifies the sample weight for the camera steps to produce spherical aberration based on radius from center
 	/// </summary>
 	/// <param name="radiusNormalized"></param>
-	/// <param name="weightsRGB"></param>
+	/// <param name="sample"></param>
 	/// <returns></returns>
 	void applySphericalAberration(float radiusNormalized, CameraLocation& sample);
 	/// <summary>
 	/// Calculates the factor of the bokeh disc outline (fringe)
 	/// </summary>
-	/// <param name="radiusNormalized"></param>
-	/// <param name="weightsRGB"></param>
+	/// <param name="ringRadiusNormalized"></param>
+	/// <param name="numRings"></param>
+	/// <param name="sample"></param>
 	/// <returns></returns>
 	void applyFringe(float ringRadiusNormalized, int numRings, CameraLocation& sample);
 	/// <summary>

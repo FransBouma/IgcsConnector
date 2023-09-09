@@ -6,6 +6,8 @@
 // By Frans Bouma, aka Otis / Infuse Project (Otis_Inf)
 // https://opm.fransbouma.com 
 //
+// Additional contributions: https://github.com/FransBouma/IgcsConnector/graphs/contributors
+//
 // This shader has been released under the following license:
 //
 // Copyright (c) 2023 Frans Bouma
@@ -37,7 +39,7 @@
 
 namespace IgcsDOF
 {
-	#define IGCS_DOF_SHADER_VERSION "v1.2.1"
+	#define IGCS_DOF_SHADER_VERSION "v2.3.0"
 	
 // #define IGCS_DOF_DEBUG	
 	
@@ -189,7 +191,7 @@ namespace IgcsDOF
 	texture texBlendAccumulate 		{ Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = RGBA32F; };
 	sampler SamplerBlendAccumulate	{ Texture = texBlendAccumulate; MagFilter = POINT; MinFilter = POINT; MipFilter = POINT; };
 
-	texture texColorHDR 			{ Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = RGBA16F; };
+	texture texColorHDR 			{ Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = RGBA32F; };
 	sampler SamplerColorHDR			{ Texture = texColorHDR; };
 
 
@@ -222,42 +224,6 @@ namespace IgcsDOF
 		// Re-tonemap color (reinhard). Thanks Marty :) 
 		float3 toReturn = fragment / (1.001 + (HighlightBoost * fragment));
 		return ConeOverlapInverse(pow(abs(toReturn), 1.0/ HighlightGammaFactor));
-	}
-
-	float4 bicubic_catmullrom(in sampler tex, in float2 uv, in float2 texsize)
-	{
-		float2 UV =  uv * texsize;
-		float2 tc = floor(UV - 0.5) + 0.5;
-		float2 f = UV - tc;
-		float2 f2 = f * f; 
-		float2 f3 = f2 * f;
-		
-		float2 w0 = f2 - 0.5 * (f3 + f);
-		float2 w1 = 1.5 * f3 - 2.5 * f2 + 1.0;
-		float2 w3 = 0.5 * (f3 - f2);
-		float2 w12 = 1.0 - w0 - w3;
-
-		float4 ws[3];    
-		ws[0].xy = w0;
-		ws[1].xy = w12;
-		ws[2].xy = w3;
-
-		ws[0].zw = tc - 1.0;
-		ws[1].zw = tc + 1.0 - w1 / w12;
-		ws[2].zw = tc + 2.0;
-
-		ws[0].zw /= texsize;
-		ws[1].zw /= texsize;
-		ws[2].zw /= texsize;
-
-		float4 ret;
-		ret  = tex2Dlod(tex, float4(ws[1].z, ws[0].w, 0, 0)) * ws[1].x * ws[0].y;    
-		ret += tex2Dlod(tex, float4(ws[0].z, ws[1].w, 0, 0)) * ws[0].x * ws[1].y;    
-		ret += tex2Dlod(tex, float4(ws[1].z, ws[1].w, 0, 0)) * ws[1].x * ws[1].y;    
-		ret += tex2Dlod(tex, float4(ws[2].z, ws[1].w, 0, 0)) * ws[2].x * ws[1].y;    
-		ret += tex2Dlod(tex, float4(ws[1].z, ws[2].w, 0, 0)) * ws[1].x * ws[2].y;    
-		float normfact = 1.0 / (1.0 - (f.x - f2.x)*(f.y - f2.y) * 0.25); //PG23: closed form for the weight sum
-		return max(0, ret * normfact);   
 	}
 
 	//to avoid moire, ramp texture into HDR first. Then, a bilinear fetch will interpolate already detonemapped samples
@@ -326,13 +292,10 @@ namespace IgcsDOF
 			{
 				const float2 aspectRatio = float2(1, float(BUFFER_PIXEL_SIZE.y) / float(BUFFER_PIXEL_SIZE.x));
 				float2 texCoordToReadFrom = texcoord + AlignmentDelta.xy * aspectRatio;
-				bool isInside = all(saturate(texCoordToReadFrom - texCoordToReadFrom*texCoordToReadFrom));
-				if(isInside)
-				{
-					float3 currentFragment = tex2Dlod(SamplerColorHDR, float4(texCoordToReadFrom, 0.0f, 0.0f)).rgb;
-					currentFragment *= float3(SampleWeightR, SampleWeightG, SampleWeightB); 
-					fragment = float4(currentFragment, BlendFactor);
-				}				
+				// discarding a source outside the buffer gives edge issues because distribution of energy then doesn't become 1
+				float3 currentFragment = tex2Dlod(SamplerColorHDR, float4(texCoordToReadFrom, 0.0f, 0.0f)).rgb;
+				currentFragment *= float3(SampleWeightR, SampleWeightG, SampleWeightB); 
+				fragment = float4(currentFragment, BlendFactor);
 			}					
 		}
 		else
@@ -373,7 +336,7 @@ namespace IgcsDOF
 			"uses Otis_Inf's camera tools as well as the IgcsConnector Reshade Addon\n"
 			"to produce realistic depth of field effects. This shader works only\n"
 			"with the addon and camera tools present.\n\n"
-			"IGCS DoF was written by Frans 'Otis_Inf' Bouma\n"
+			"IGCS DoF was written by Frans 'Otis_Inf' Bouma and contributors.\n"
 			"https://opm.fransbouma.com | https://github.com/FransBouma/IgcsConnector"; >
 #endif
 	{

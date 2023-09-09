@@ -407,20 +407,21 @@ void DepthOfFieldController::applySphericalAberration(float radiusNormalized, Ca
 
 void DepthOfFieldController::applyFringe(float ringRadiusNormalized, int numRings, CameraLocation& sample)
 {
-	float transitionWidth = 0.5f / numRings;
+	const float transitionWidth = 0.5f / numRings;
 	//perform a linear step with the spacing of a ring radius 
 	
 	//(x-a)/(b-a)
-	float fringeRampStart = 1.0f - _fringeWidth - transitionWidth;
-	float fringeRampEnd   = 1.0f - _fringeWidth + transitionWidth;
-	float fringeMask = std::clamp((ringRadiusNormalized - fringeRampStart) / (fringeRampEnd - fringeRampStart), 0.0f, 1.0f);
+	const float fringeRampStart = 1.0f - _fringeWidth - transitionWidth;
+	const float fringeRampEnd   = 1.0f - _fringeWidth + transitionWidth;
+	const float fringeMask = std::clamp((ringRadiusNormalized - fringeRampStart) / (fringeRampEnd - fringeRampStart), 0.0f, 1.0f);
 
-	float fringeFactor = (1.0f - _fringeIntensity) * (1.0f - fringeMask) + fringeMask * 1.0f;
+	const float fringeFactor = (1.0f - _fringeIntensity) * (1.0f - fringeMask) + fringeMask * 1.0f;
 
 	sample.sampleWeightRGB[0] *= fringeFactor;
 	sample.sampleWeightRGB[1] *= fringeFactor;
 	sample.sampleWeightRGB[2] *= fringeFactor;
 }
+
 
 void DepthOfFieldController::createCircleDoFPoints()
 {
@@ -461,35 +462,8 @@ void DepthOfFieldController::createCircleDoFPoints()
 		pointsOnRing += pointsFirstRing;
 	}
 
-	//renormalize bokeh weights so they do not scale the exposure or add a tint	
-	float weightSumRGB[3] = {0.0f, 0.0f, 0.0f};
-	for(auto& step : _cameraSteps)
-	{
-		weightSumRGB[0] += step.sampleWeightRGB[0];
-		weightSumRGB[1] += step.sampleWeightRGB[1];
-		weightSumRGB[2] += step.sampleWeightRGB[2];
-	}	
-	for(auto& step : _cameraSteps)
-	{
-		step.sampleWeightRGB[0] /= weightSumRGB[0];
-		step.sampleWeightRGB[1] /= weightSumRGB[1];	
-		step.sampleWeightRGB[2] /= weightSumRGB[2];	
-	}
-
-	switch(_renderOrder)
-	{
-		case DepthOfFieldRenderOrder::InnerRingToOuterRing:
-			// nothing, we're already having the points in the right order
-			break;
-		case DepthOfFieldRenderOrder::OuterRingToInnerRing:
-			// reverse the container.
-			std::ranges::reverse(_cameraSteps);
-			break;
-		case DepthOfFieldRenderOrder::Randomized:
-			std::ranges::shuffle(_cameraSteps, std::random_device());
-			break;
-		default: ;
-	}
+	renormalizeBokehWeights();
+	applyRenderOrder();
 }
 
 
@@ -561,21 +535,32 @@ void DepthOfFieldController::createApertureShapedDoFPoints()
 		}
 	}
 
+	renormalizeBokehWeights();
+	applyRenderOrder();
+}
+
+
+void DepthOfFieldController::renormalizeBokehWeights()
+{
 	//renormalize bokeh weights so they do not scale the exposure or add a tint	
-	float weightSumRGB[3] = {0.0f, 0.0f, 0.0f};
-	for(auto& step : _cameraSteps)
+	float weightSumRGB[3] = { 0.0f, 0.0f, 0.0f };
+	for(const auto& step : _cameraSteps)
 	{
 		weightSumRGB[0] += step.sampleWeightRGB[0];
 		weightSumRGB[1] += step.sampleWeightRGB[1];
 		weightSumRGB[2] += step.sampleWeightRGB[2];
-	}	
+	}
 	for(auto& step : _cameraSteps)
 	{
 		step.sampleWeightRGB[0] /= weightSumRGB[0];
-		step.sampleWeightRGB[1] /= weightSumRGB[1];	
-		step.sampleWeightRGB[2] /= weightSumRGB[2];	
+		step.sampleWeightRGB[1] /= weightSumRGB[1];
+		step.sampleWeightRGB[2] /= weightSumRGB[2];
 	}
+}
 
+
+void DepthOfFieldController::applyRenderOrder()
+{
 	switch(_renderOrder)
 	{
 		case DepthOfFieldRenderOrder::InnerRingToOuterRing:
