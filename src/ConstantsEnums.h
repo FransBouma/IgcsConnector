@@ -66,6 +66,23 @@ enum class DepthOfFieldControllerState : int
 };
 
 
+enum class DepthOfFieldCAType : int
+{
+	RGB,
+	RG,
+	RB,
+	BG
+};
+
+
+enum class DepthOfFieldColorChannel :int
+{
+	Red,
+	Green,
+	Blue
+};
+
+
 enum class DepthOfFieldRenderFrameState : int
 {
 	Off,			// no work

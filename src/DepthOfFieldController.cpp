@@ -149,15 +149,19 @@ void DepthOfFieldController::loadIniFileData(CDataFile& iniFile)
 	loadFloatFromIni(iniFile, "SphericalAberrationDimFactor", &_sphericalAberrationDimFactor);
 	loadFloatFromIni(iniFile, "FringeIntensity", &_fringeIntensity);
 	loadFloatFromIni(iniFile, "FringeWidth", &_fringeWidth);
+	loadFloatFromIni(iniFile, "CAStrength", &_caStrength);
+	loadFloatFromIni(iniFile, "CAWidth", &_caWidth);
 	loadIntFromIni(iniFile, "NumberOfVertices", &_apertureShapeSettings.NumberOfVertices);
 	loadIntFromIni(iniFile, "Quality", &_quality);
 	loadIntFromIni(iniFile, "NumberOfPointsInnermostRing", &_numberOfPointsInnermostRing);
 	loadIntFromIni(iniFile, "NumberOfFramesToWaitPerFrame", &_numberOfFramesToWaitPerFrame);
 	loadBoolFromIni(iniFile, "ShowProgressBarAsOverlay", &_showProgressBarAsOverlay, true);
 
-	int blurType = 0;
-	loadIntFromIni(iniFile, "BlurType", &blurType);
-	_blurType = (DepthOfFieldBlurType)blurType;
+	int intValueFromIni = 0;
+	loadIntFromIni(iniFile, "BlurType", &intValueFromIni);
+	_blurType = (DepthOfFieldBlurType)intValueFromIni;
+	loadIntFromIni(iniFile, "CAType", &intValueFromIni);
+	_caType = (DepthOfFieldCAType)intValueFromIni;
 }
 
 
@@ -175,12 +179,15 @@ void DepthOfFieldController::saveIniFileData(CDataFile& iniFile)
 	iniFile.SetFloat("SphericalAberrationDimFactor", _sphericalAberrationDimFactor, "", "DepthOfField");
 	iniFile.SetFloat("FringeIntensity", _fringeIntensity, "", "DepthOfField");
 	iniFile.SetFloat("FringeWidth", _fringeWidth, "", "DepthOfField");
+	iniFile.SetFloat("CAStrength", _caStrength, "", "DepthOfField");
+	iniFile.SetFloat("CAWidth", _caWidth, "", "DepthOfField");
 	iniFile.SetInt("NumberOfVertices", _apertureShapeSettings.NumberOfVertices, "", "DepthOfField");
 	iniFile.SetInt("Quality", _quality, "", "DepthOfField");
 	iniFile.SetInt("NumberOfPointsInnermostRing", _numberOfPointsInnermostRing, "", "DepthOfField");
 	iniFile.SetInt("NumberOfFramesToWaitPerFrame", _numberOfFramesToWaitPerFrame, "", "DepthOfField");
 	iniFile.SetBool("ShowProgressBarAsOverlay", _showProgressBarAsOverlay, "", "DepthOfField");
 	iniFile.SetInt("BlurType", (int)_blurType, "", "DepthOfField");
+	iniFile.SetInt("CAType", (int)_caType, "", "DepthOfField");
 }
 
 
@@ -406,10 +413,10 @@ void DepthOfFieldController::applySphericalAberration(float radiusNormalized, Ca
 }
 
 
-float DepthOfFieldController::calculateChannelDimFactor(float angleSegment, float segmentAngleMin)
+float DepthOfFieldController::calculateChannelDimFactor(float angleSegment, float segmentAngleMin, int numberOfSegments)
 {
 	// using Iq's parabola using k==0.5, see: https://www.desmos.com/calculator/aszway25gw and https://iquilezles.org/articles/functions/
-	constexpr float segmentSize = 1.0f / 3.0f;
+	const float segmentSize = 1.0f / (float)(numberOfSegments ==0 ? 1 : numberOfSegments);
 	const float angleToSegmentNormalized = IGCS::Utils::clampEx(angleSegment - segmentAngleMin, 0.0f, segmentSize) / segmentSize;
 	return std::pow(4.0f * angleToSegmentNormalized * (1.0 - angleToSegmentNormalized), 0.5f);
 }
@@ -426,47 +433,82 @@ void DepthOfFieldController::applyFringe(float ringRadiusNormalized, float sampl
 	const float fringeMask = IGCS::Utils::clampEx((ringRadiusNormalized - fringeRampStart) / (fringeRampEnd - fringeRampStart), 0.0f, 1.0f);
 	const float fringeFactor = (1.0f - _fringeIntensity) * (1.0f - fringeMask) + fringeMask;
 
-	const float angleSegment = sampleAngle / 6.28318530717958f;
-	// 0-0.33333: blue, 0.33333-0.6666: green, 0.6666-1: red
-	constexpr float blueSegmentMaxAngle = 1.0f / 3.0f;
-	constexpr float greenSegmentMaxAngle = 2.0f / 3.0f;
 	// factors for the dimming. 1.0 means visible, 0.0 means dimmed 100%
 	float blueFactor = 1.0f;
 	float greenFactor = 1.0f;
 	float redFactor = 1.0f;
+	const float angleSegment = sampleAngle / 6.28318530717958f;
+	// for 3 segments: 
+	// 0-0.33333: blue, 0.33333-0.6666: green, 0.6666-1: red
+	// for 2 segments, the two colors in the type both have 0.5
 
-	// cheap filter out segments and apply operands. Per segment a channel is prominent and the others are dimmed graciously
+	DepthOfFieldColorChannel segmentOneProminentColor = DepthOfFieldColorChannel::Red;
+	DepthOfFieldColorChannel segmentTwoProminentColor = DepthOfFieldColorChannel::Green;
+	DepthOfFieldColorChannel segmentThreeProminentColor = DepthOfFieldColorChannel::Blue;
 
-	if(angleSegment <= 0.33333f)
+	int numberOfSegments = 3;
+	switch(_caType)
 	{
-		// blue prominent, dim red/green
-		redFactor = 1.0f - calculateChannelDimFactor(angleSegment, 0.0f);
-		greenFactor = redFactor;
+		case DepthOfFieldCAType::RGB:
+			// The defaults are ok for this setup
+			break;
+		case DepthOfFieldCAType::RG:
+			numberOfSegments = 2;
+			// prominent color defaults are ok for this setup
+			break;
+		case DepthOfFieldCAType::RB:
+			numberOfSegments = 2;
+			segmentTwoProminentColor = DepthOfFieldColorChannel::Blue;
+			break;
+		case DepthOfFieldCAType::BG:
+			numberOfSegments = 2;
+			segmentOneProminentColor = DepthOfFieldColorChannel::Blue;
+			break;
+	}
+	const float segmentOneMaxAngle = 1.0f / (float)numberOfSegments;
+	const float segmentTwoMaxAngle = 2.0f / (float)numberOfSegments;
+
+	bool redChannelDimmable = true;
+	bool greenChannelDimmable = true;
+	bool blueChannelDimmable = true;
+	float dimFactor = 0.0f;
+	// cheap filter out segments and apply operands. Per segment a channel is prominent and the others are dimmed graciously
+	// execution flow will always arrive in 1 if handler below so we can use that to our advantage with setting flags for the final calculations
+	if(angleSegment <= segmentOneMaxAngle)
+	{
+		dimFactor = 1.0f - calculateChannelDimFactor(angleSegment, 0.0f, numberOfSegments);
+		redChannelDimmable = segmentOneProminentColor != DepthOfFieldColorChannel::Red;
+		greenChannelDimmable = segmentOneProminentColor != DepthOfFieldColorChannel::Green;
+		blueChannelDimmable = segmentOneProminentColor != DepthOfFieldColorChannel::Blue;
 	}
 	else
 	{
-		if(angleSegment <= 0.66666f)
+		if(angleSegment <= segmentTwoMaxAngle)
 		{
-			// green prominent, dim red/blue
-			redFactor = 1.0f - calculateChannelDimFactor(angleSegment, blueSegmentMaxAngle);
-			blueFactor = redFactor;
+			// last segment for 2 colors, middle segment for 3 colors
+			dimFactor = 1.0f - calculateChannelDimFactor(angleSegment, segmentOneMaxAngle, numberOfSegments);
+			redChannelDimmable = segmentTwoProminentColor != DepthOfFieldColorChannel::Red;
+			greenChannelDimmable = segmentTwoProminentColor != DepthOfFieldColorChannel::Green;
+			blueChannelDimmable = segmentTwoProminentColor != DepthOfFieldColorChannel::Blue;
 		}
 		else
 		{
-			// last segment
-			// red prominent, dim blue/green
-			blueFactor = 1.0f - calculateChannelDimFactor(angleSegment, greenSegmentMaxAngle);
-			greenFactor = blueFactor;
+			// last segment for 3 colors, for 2 color ca we'll never end up here. 
+			dimFactor = 1.0f - calculateChannelDimFactor(angleSegment, segmentTwoMaxAngle, numberOfSegments);
+			redChannelDimmable = segmentThreeProminentColor != DepthOfFieldColorChannel::Red;
+			greenChannelDimmable = segmentThreeProminentColor != DepthOfFieldColorChannel::Green;
+			blueChannelDimmable = segmentThreeProminentColor != DepthOfFieldColorChannel::Blue;
 		}
 	}
+
 	const float caRampStart = 1.0f - _caWidth - transitionWidth;
 	const float caRampEnd = 1.0f - _caWidth + transitionWidth;
 	const float caMask = IGCS::Utils::clampEx((ringRadiusNormalized - caRampStart) / (caRampEnd - caRampStart), 0.0f, 1.0f);
 	const float caFactor = _caStrength * caMask;
 
-	redFactor = IGCS::Utils::lerp(redFactor, 1.0f, (1.0f - caFactor));
-	blueFactor = IGCS::Utils::lerp(blueFactor, 1.0f, (1.0f - caFactor));
-	greenFactor = IGCS::Utils::lerp(greenFactor, 1.0f, (1.0f - caFactor));
+	redFactor = redChannelDimmable ? IGCS::Utils::lerp(dimFactor, 1.0f, (1.0f - caFactor)) : redFactor;
+	greenFactor = greenChannelDimmable ? IGCS::Utils::lerp(dimFactor, 1.0f, (1.0f - caFactor)) : greenFactor;
+	blueFactor = blueChannelDimmable ? IGCS::Utils::lerp(dimFactor, 1.0f, (1.0f - caFactor)) : blueFactor;
 
 	sample.sampleWeightRGB[0] *= fringeFactor * redFactor;
 	sample.sampleWeightRGB[1] *= fringeFactor * greenFactor;

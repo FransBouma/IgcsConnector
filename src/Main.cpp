@@ -554,7 +554,7 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 									{
 										bool shapeSettingsChanged = false;
 										auto& shapeSettings = g_depthOfFieldController.getApertureShapeSettings();
-										shapeSettingsChanged |= ImGui::DragInt("Number of vertices", &shapeSettings.NumberOfVertices, 1, 3, 16);
+										shapeSettingsChanged |= ImGui::DragInt("Number of vertices", &shapeSettings.NumberOfVertices, 0.1f, 3, 10);
 										shapeSettingsChanged |= ImGui::DragFloat("Rounding factor", &shapeSettings.RoundFactor, 0.001f, 0.0f, 1.0f);
 										shapeSettingsChanged |= ImGui::DragFloat("Rotation angle", &shapeSettings.RotationAngle, 0.001f, 0.0f, 1.0f);		// multiplier to 2PI.
 
@@ -628,7 +628,12 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 							{
 								g_depthOfFieldController.setFringeWidth(fringeWidth);
 							}
-
+							int caType = (int)g_depthOfFieldController.getCAType();
+							changed = ImGui::Combo("Chromatic aberration type", &caType, "Red-Green-Blue\0Red-Green\0Red-Blue\0Blue-Green\0\0");
+							if(changed)
+							{
+								g_depthOfFieldController.setCAType((DepthOfFieldCAType)caType);
+							}
 							float caStrength = g_depthOfFieldController.getCAStrength();
 							changed = ImGui::DragFloat("Chromatic aberration strength", &caStrength, 0.000f, 0.0f, 1.0f);
 							if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))

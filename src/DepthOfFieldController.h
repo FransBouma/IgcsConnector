@@ -207,6 +207,11 @@ public:
 		_renderOrder = newValue;
 		calculateShapePoints();
 	}
+	void setCAType(DepthOfFieldCAType newValue)
+	{
+		_caType = newValue;
+		calculateShapePoints();
+	}
 	void setHighlightBoostFactor(float newValue) { _highlightBoostFactor = IGCS::Utils::clampEx(newValue, 0.0f, 1.0f); }
 	void setHighlightGammaFactor(float newValue) { _highlightGammaFactor = IGCS::Utils::clampEx(newValue, 0.1f, 5.0f); }
 	void setRenderPaused(bool newValue) { _renderPaused = newValue; }
@@ -232,6 +237,7 @@ public:
 	float getFringeWidth() { return _fringeWidth; }
 	float getCAStrength() { return _caStrength; }
 	float getCAWidth() { return _caWidth; }
+	DepthOfFieldCAType getCAType() { return _caType; }
 
 	MagnifierSettings& getMagnifierSettings() { return _magnificationSettings; }		// this is a bit dirty...
 	ApertureShapeSettings& getApertureShapeSettings() { return _apertureShapeSettings; }						// same
@@ -294,8 +300,9 @@ private:
 	/// </summary>
 	/// <param name="angleSegment"></param>
 	/// <param name="segmentAngleMin"></param>
+	/// <param name="numberOfSegments"></param>
 	/// <returns></returns>
-	float calculateChannelDimFactor(float angleSegment, float segmentAngleMin);
+	float calculateChannelDimFactor(float angleSegment, float segmentAngleMin, int numberOfSegments);
 
 	bool isReshadeStateEmpty()
 	{
@@ -323,6 +330,7 @@ private:
 	float _caStrength = 0.0f;
 	float _caWidth = 0.1f;
 	float _sampleWeightRGB[3] = {1.0f, 1.0f, 1.0f};
+	DepthOfFieldCAType _caType = DepthOfFieldCAType::RGB;
 
 	MagnifierSettings _magnificationSettings;
 
