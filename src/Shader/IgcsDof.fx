@@ -39,7 +39,7 @@
 
 namespace IgcsDOF
 {
-	#define IGCS_DOF_SHADER_VERSION "v2.3.0"
+	#define IGCS_DOF_SHADER_VERSION "v2.3.1"
 	
 // #define IGCS_DOF_DEBUG	
 	
@@ -192,7 +192,7 @@ namespace IgcsDOF
 	sampler SamplerBlendAccumulate	{ Texture = texBlendAccumulate; MagFilter = POINT; MinFilter = POINT; MipFilter = POINT; };
 
 	texture texColorHDR 			{ Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = RGBA32F; };
-	sampler SamplerColorHDR			{ Texture = texColorHDR; };
+	sampler SamplerColorHDR			{ Texture = texColorHDR;};
 
 
 	float3 ConeOverlap(float3 fragment)
@@ -292,10 +292,20 @@ namespace IgcsDOF
 			{
 				const float2 aspectRatio = float2(1, float(BUFFER_PIXEL_SIZE.y) / float(BUFFER_PIXEL_SIZE.x));
 				float2 texCoordToReadFrom = texcoord + AlignmentDelta.xy * aspectRatio;
-				// discarding a source outside the buffer gives edge issues because distribution of energy then doesn't become 1
+				// always read the fragment to avoid stalls in the pipelines
 				float3 currentFragment = tex2Dlod(SamplerColorHDR, float4(texCoordToReadFrom, 0.0f, 0.0f)).rgb;
-				currentFragment *= float3(SampleWeightR, SampleWeightG, SampleWeightB); 
-				fragment = float4(currentFragment, BlendFactor);
+				bool isInside = all(saturate(texCoordToReadFrom - texCoordToReadFrom*texCoordToReadFrom));
+				if(isInside)
+				{
+					// read from inside the viewport
+					currentFragment *= float3(SampleWeightR, SampleWeightG, SampleWeightB); 
+					fragment = float4(currentFragment, BlendFactor);
+				}
+				else
+				{
+					// read from outside the viewport. discard the pixel to avoid streaks on edges
+					discard;
+				}
 			}					
 		}
 		else
