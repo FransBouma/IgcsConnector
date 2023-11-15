@@ -331,6 +331,25 @@ static void startScreenshotSession(bool isTestRun)
 }
 
 
+void loadGeneralSettingsFromIniFile(CDataFile& iniFile)
+{
+	if(iniFile.GetValue("RecordReshadeState", "General").length() > 0)
+	{
+		g_recordReshadeState = iniFile.GetBool("RecordReshadeState", "General");
+	}
+
+	// more settings here
+}
+
+
+void saveGeneralSettingsToIniFile(CDataFile& iniFile)
+{
+	iniFile.SetBool("RecordReshadeState", g_recordReshadeState, "", "General");
+
+	// more settings here
+}
+
+
 void loadIniFile()
 {
 	CDataFile iniFile;
@@ -341,13 +360,17 @@ void loadIniFile()
 	}
 
 	g_depthOfFieldController.loadIniFileData(iniFile);
+	loadGeneralSettingsFromIniFile(iniFile);
 }
+
 
 
 void saveIniFile()
 {
 	CDataFile iniFile;
 	g_depthOfFieldController.saveIniFileData(iniFile);
+
+	saveGeneralSettingsToIniFile(iniFile);
 
 	iniFile.SetFileName(SETTINGS_FILE_NAME);
 	iniFile.Save();
@@ -896,6 +919,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID)
 		{
 			free(g_dataFromCameraToolsBuffer);
 		}
+		saveIniFile();
 		break;
 	}
 
