@@ -27,8 +27,8 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 #pragma once
 #include <reshade.hpp>
-
 #include "stdafx.h"
+#include <vector>
 
 namespace IGCS::Utils
 {
@@ -39,7 +39,7 @@ namespace IGCS::Utils
 
 	BYTE CharToByte(char c);
 	bool stringStartsWith(const char *a, const char *b);
-
+	std::vector<float> XMFloat4x4ToFlatVector(const DirectX::XMMATRIX& toConvert);
 
 	/// <summary>
 	/// Special clamp variant, which returns the min value if value is smaller than min value, and max if the value is larger than max. Max is optional, if it's e.g. 0 or equal to Min, only the min

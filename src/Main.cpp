@@ -868,6 +868,121 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 }
 
 
+void sendCameraToolsDataToUniforms(effect_runtime* runtime)
+{
+	// the following source variables are defined with their types:
+	// IGCS_cameraDataAvailable			bool
+	// IGCS_cameraEnabled				bool
+	// IGCS_cameraMovementLocked		bool
+	// IGCS_cameraFoV					float		degrees
+	// IGCS_cameraWorldPosition			float3
+	// IGCS_cameraOrientation			float4		quaternion (x,y,z,w)
+	// IGCS_cameraViewMatrix4x4			float4x4
+	// IGCS_cameraProjectionMatrix4x4LH	float4x4	calculated from fov + aspect ratio + near of 0.1 and far of 10000.0, using left handed row major DirectX math
+	// IGCS_cameraUp					float3		up vector of 3x3 part of view matrix
+	// IGCS_cameraRight					float3		right vector of 3x3 part of view matrix
+ 	// IGCS_cameraForward				float3		forward vector of 3x3 part of view matrix
+	// IGCS_cameraRotationPitch			float		radians
+	// IGCS_cameraRotationYaw			float		radians
+	// IGCS_cameraRotationRoll			float		radians
+	const auto cameraData = (CameraToolsData*)g_dataFromCameraToolsBuffer;
+	if(nullptr==cameraData)
+	{
+		runtime->enumerate_uniform_variables(nullptr, [](effect_runtime* runtime, effect_uniform_variable variable)
+		{
+			char source[32];
+			if(runtime->get_annotation_string_from_uniform_variable(variable, "source", source) && std::strcmp(source, "IGCS_cameraDataAvailable") == 0)
+			{
+				runtime->set_uniform_value_bool(variable, false);
+			}
+		});
+		return;
+	}
+
+	runtime->enumerate_uniform_variables(nullptr, [&cameraData](effect_runtime *runtime, effect_uniform_variable variable) 
+	{
+		char source[64];
+		runtime->get_annotation_string_from_uniform_variable(variable, "source", source);
+		if(std::strcmp(source, "IGCS_cameraDataAvailable") == 0)
+		{
+			runtime->set_uniform_value_bool(variable, true);
+		}
+		else if(std::strcmp(source, "IGCS_cameraEnabled") == 0)
+		{
+			runtime->set_uniform_value_bool(variable, cameraData->cameraEnabled);
+		}
+		else if(std::strcmp(source, "IGCS_cameraMovementLocked") == 0)
+		{
+			runtime->set_uniform_value_bool(variable, cameraData->cameraMovementLocked);
+		}
+		else if(std::strcmp(source, "IGCS_cameraFoV") == 0)
+		{
+			runtime->set_uniform_value_float(variable, cameraData->fov);
+		}
+		else if(std::strcmp(source, "IGCS_cameraWorldPosition") == 0)
+		{
+			runtime->set_uniform_value_float(variable, cameraData->coordinates.x(), cameraData->coordinates.y(), cameraData->coordinates.z());
+		}
+		else if(std::strcmp(source, "IGCS_cameraOrientation") == 0)
+		{
+			runtime->set_uniform_value_float(variable, cameraData->lookQuaternion.x(), cameraData->lookQuaternion.y(), cameraData->lookQuaternion.z(), cameraData->lookQuaternion.w());
+		}
+		else if(std::strcmp(source, "IGCS_cameraViewMatrix4x4") == 0)
+		{
+			const auto matrixAsFlatVector = cameraData->lookQuaternion.toFlatVector();
+			runtime->set_uniform_value_float(variable, &matrixAsFlatVector[0], 16, 0);
+		}
+		else if(std::strcmp(source, "IGCS_cameraProjectionMatrix4x4LH") == 0)
+		{
+			const auto device = runtime->get_device();
+			if(nullptr!=device && cameraData->fov>0)
+			{
+				const auto currentBackBuffer = runtime->get_current_back_buffer();
+				if(currentBackBuffer.handle>0)
+				{
+					const auto description = device->get_resource_desc(currentBackBuffer);
+					const auto width = static_cast<float>(description.texture.width);
+					auto height = static_cast<float>(description.texture.height);
+					if(height<DirectX::g_XMEpsilon.f[0])
+					{
+						height = 0.1;
+					}
+					const auto aspectRatio = width / height;
+					const auto projectionMatrixLH = DirectX::XMMatrixPerspectiveFovLH(IGCS::Utils::degreesToRadians(cameraData->fov), aspectRatio, 0.1f, 10000.0f);
+					const auto projectionMatrixAsFlatVector = IGCS::Utils::XMFloat4x4ToFlatVector(projectionMatrixLH);
+					runtime->set_uniform_value_float(variable, &projectionMatrixAsFlatVector[0], 16, 0);
+				}
+			}
+		}
+		else if(std::strcmp(source, "IGCS_cameraRotationPitch") == 0)
+		{
+			runtime->set_uniform_value_float(variable, cameraData->pitch);
+		}
+		else if(std::strcmp(source, "IGCS_cameraRotationYaw") == 0)
+		{
+			runtime->set_uniform_value_float(variable, cameraData->yaw);
+		}
+		else if(std::strcmp(source, "IGCS_cameraRotationRoll") == 0)
+		{
+			runtime->set_uniform_value_float(variable, cameraData->roll);
+		}
+		else if(std::strcmp(source, "IGCS_cameraUp") == 0)
+		{
+			runtime->set_uniform_value_float(variable, cameraData->rotationMatrixUpVector.x(), cameraData->rotationMatrixUpVector.y(), cameraData->rotationMatrixUpVector.z());
+		}
+		else if(std::strcmp(source, "IGCS_cameraRight") == 0)
+		{
+			runtime->set_uniform_value_float(variable, cameraData->rotationMatrixRightVector.x(), cameraData->rotationMatrixRightVector.y(), cameraData->rotationMatrixRightVector.z());
+		}
+		else if(std::strcmp(source, "IGCS_cameraForward") == 0)
+		{
+			runtime->set_uniform_value_float(variable, cameraData->rotationMatrixForwardVector.x(), cameraData->rotationMatrixForwardVector.y(), cameraData->rotationMatrixForwardVector.z());
+		}
+		// add more here. 
+	});
+}
+
+
 void onReshadeReloadEffects(effect_runtime* runtime)
 {
 	// This call can be made in various scenarios, but they have either one of 2 characteristics: 1) there are 0 effects or 2) there are effects but they're changing.
@@ -877,9 +992,9 @@ void onReshadeReloadEffects(effect_runtime* runtime)
 	g_depthOfFieldController.migrateReshadeState(runtime);
 }
 
-
 void onReshadeBeginEffects(effect_runtime* runtime, command_list* cmd_list, resource_view rtv, resource_view rtv_srgb)
 {
+	sendCameraToolsDataToUniforms(runtime);
 	g_depthOfFieldController.reshadeBeginEffectsCalled(runtime);
 }
 

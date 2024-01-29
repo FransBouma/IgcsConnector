@@ -30,6 +30,7 @@
 #include <comdef.h>
 #include <codecvt>
 #include <reshade.hpp>
+#include <vector>
 
 #pragma warning(disable : 4996)
 
@@ -88,5 +89,23 @@ namespace IGCS::Utils
 		va_end(args);
 
 		reshade::log_message(logLevel, formattedString.c_str());
+	}
+
+
+	// returns a flat vector with 16 elements, row major order so first row 0, then row 1, then row 2 and then row 3
+	std::vector<float> XMFloat4x4ToFlatVector(const DirectX::XMMATRIX& toConvert)
+	{
+		DirectX::XMFLOAT4X4 toConvertAs4x4;
+		DirectX::XMStoreFloat4x4(&toConvertAs4x4, toConvert);
+
+		std::vector<float> toReturn;
+		for(int row = 0; row < 4; row++)
+		{
+			for(int col = 0; col < 4; col++)
+			{
+				toReturn.push_back(toConvertAs4x4.m[row][col]);
+			}
+		}
+		return toReturn;
 	}
 }

@@ -33,6 +33,8 @@
 
 #pragma once
 #include <cstdint>
+#include <vector>
+#include "Utils.h"
 
 struct Vec3
 {
@@ -91,6 +93,21 @@ struct Vec4
 		values[2] = z;
 		values[3] = w;
 	}
+
+
+	DirectX::XMVECTOR toXMVector()
+	{
+		const auto asFloat4 = DirectX::XMFLOAT4(values);
+		return DirectX::XMLoadFloat4(&asFloat4);
+	}
+
+
+	std::vector<float> toFlatVector()
+	{
+		const DirectX::XMMATRIX rotationMatrixPacked = DirectX::XMMatrixRotationQuaternion(toXMVector());
+		return IGCS::Utils::XMFloat4x4ToFlatVector(rotationMatrixPacked);
+	}
+
 
 	float x() { return values[0]; }
 	float y() { return values[1]; }
