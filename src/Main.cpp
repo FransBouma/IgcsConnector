@@ -531,9 +531,23 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 							}
 							int numberOfFramesToWaitPerFrame = g_depthOfFieldController.getNumberOfFramesToWaitPerFrame();
 							changed = ImGui::DragInt("Number of frames to wait per frame", &numberOfFramesToWaitPerFrame, 1, 1, 20);
+							if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+							{
+								ImGui::SetTooltip("Use this value to define the blend delay.\nUsually 1 or 2. For engines with a long render pipeline you might to\nneed to increase this value. Increasing this value doesn't increase the render time.");
+							}
 							if(changed)
 							{
 								g_depthOfFieldController.setNumberOfFramesToWaitPerFrame(numberOfFramesToWaitPerFrame);
+							}
+							int numberOfBuffers = g_depthOfFieldController.getNumberOfFramesToWaitForBlendingPerFrame();
+							changed = ImGui::DragInt("Number of frames to wait for blending per frame", &numberOfBuffers, 1, 0, 20);
+							if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+							{
+								ImGui::SetTooltip("Use this value to specify a delay during blending a frame.\nUsually 0 but if the engine uses a lot of temporal effects\nyou might need to increase this value.\nIncreasing this value will increase the render time.");
+							}
+							if(changed)
+							{
+								g_depthOfFieldController.setNumberOfFramesToWaitForBlendingPerFrame(numberOfBuffers);
 							}
 
 							ImGui::SeparatorText("Magnifier");
@@ -1017,7 +1031,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID)
 		reshade::register_event<reshade::addon_event::reshade_present>(onReshadePresent);
 		reshade::register_event<reshade::addon_event::reshade_overlay>(onReshadeOverlay);
 		reshade::register_event<reshade::addon_event::reshade_begin_effects>(onReshadeBeginEffects);
-		reshade::register_event<reshade::addon_event::reshade_begin_effects>(onReshadeFinishEffects);
+		reshade::register_event<reshade::addon_event::reshade_finish_effects>(onReshadeFinishEffects);
 		reshade::register_event<reshade::addon_event::reshade_reloaded_effects>(onReshadeReloadEffects);
 		reshade::register_overlay(nullptr, &displaySettings);
 		loadIniFile();
@@ -1026,8 +1040,8 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID)
 		reshade::unregister_event<reshade::addon_event::reshade_present>(onReshadePresent);
 		reshade::unregister_event<reshade::addon_event::reshade_overlay>(onReshadeOverlay);
 		reshade::unregister_event<reshade::addon_event::reshade_begin_effects>(onReshadeBeginEffects);
+		reshade::unregister_event<reshade::addon_event::reshade_finish_effects>(onReshadeFinishEffects);
 		reshade::unregister_event<reshade::addon_event::reshade_reloaded_effects>(onReshadeReloadEffects);
-		reshade::unregister_event<reshade::addon_event::reshade_begin_effects>(onReshadeFinishEffects);
 		reshade::unregister_overlay(nullptr, &displaySettings);
 		reshade::unregister_addon(hModule);
 		if(nullptr!=g_dataFromCameraToolsBuffer)

@@ -39,7 +39,7 @@
 
 namespace IgcsDOF
 {
-	#define IGCS_DOF_SHADER_VERSION "v2.3.2"
+	#define IGCS_DOF_SHADER_VERSION "v2.4.0"
 	
 // #define IGCS_DOF_DEBUG	
 	
@@ -303,8 +303,8 @@ namespace IgcsDOF
 				else
 				{
 					// read from outside the viewport. discard the pixel to avoid streaks on edges
-					// discard;
-					currentFragment = float3(0,0,0);
+					discard;
+					// currentFragment = float3(0,0,0);
 				}
 				fragment = float4(currentFragment, BlendFactor);
 			}					

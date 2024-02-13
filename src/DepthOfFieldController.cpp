@@ -293,18 +293,25 @@ void DepthOfFieldController::reshadeFinishEffectsCalled(reshade::api::effect_run
 void DepthOfFieldController::performRenderFrameSetupWork()
 {
 	// move camera and set counter and move to next state
-	const auto& currentFrameData = _cameraSteps[_currentFrame];
-	_cameraToolsConnector.moveCameraMultishot(currentFrameData.xDelta, currentFrameData.yDelta, 0.0f, true);
-	_xAlignmentDelta = currentFrameData.xAlignmentDelta;
-	_yAlignmentDelta = currentFrameData.yAlignmentDelta;
-	_frameWaitCounter = _numberOfFramesToWaitPerFrame;
-	_blendFactor = 1.0f / (static_cast<float>(_currentFrame) + 1.0f);		// frame start at 0 so +1, to get 1/1=100% blend factor for first frame
+	if(_currentStepFrame < _cameraSteps.size())
+	{
+		const auto& currentStepFrameData = _cameraSteps[_currentStepFrame];
+		_cameraToolsConnector.moveCameraMultishot(currentStepFrameData.xDelta, currentStepFrameData.yDelta, 0.0f, true);
+	}
+	if(_currentBlendFrame >= 0)
+	{
+		const auto& currentBlendFrameData = _cameraSteps[_currentBlendFrame];
+		_xAlignmentDelta = currentBlendFrameData.xAlignmentDelta;
+		_yAlignmentDelta = currentBlendFrameData.yAlignmentDelta;
+		_frameBlendWaitCounter = _numberOfFramesToWaitForBlendingPerFrame;
+		_blendFactor = 1.0f / (static_cast<float>(_currentBlendFrame) + 1.0f);		// frame start at 0 so +1, to get 1/1=100% blend factor for first frame
 
-	//since the lerp blending implicitly already divides the sum by N, we must not do it again, so compensate
-	float numSamples =  _cameraSteps.size();
-	_sampleWeightRGB[0] = currentFrameData.sampleWeightRGB[0] * numSamples;
-	_sampleWeightRGB[1] = currentFrameData.sampleWeightRGB[1] * numSamples;
-	_sampleWeightRGB[2] = currentFrameData.sampleWeightRGB[2] * numSamples;
+		//since the lerp blending implicitly already divides the sum by N, we must not do it again, so compensate
+		const float numSamples = _cameraSteps.size();
+		_sampleWeightRGB[0] = currentBlendFrameData.sampleWeightRGB[0] * numSamples;
+		_sampleWeightRGB[1] = currentBlendFrameData.sampleWeightRGB[1] * numSamples;
+		_sampleWeightRGB[2] = currentBlendFrameData.sampleWeightRGB[2] * numSamples;
+	}
 	// Set the framestate to wait so the counter will take effect.
 	_renderFrameState = DepthOfFieldRenderFrameState::FrameWait;
 }
@@ -321,29 +328,29 @@ void DepthOfFieldController::handlePresentBeforeReshadeEffects()
 	{
 		case DepthOfFieldRenderFrameState::Off:
 		case DepthOfFieldRenderFrameState::FrameBlending:
-			// no-op
-			break;
 		case DepthOfFieldRenderFrameState::Start:
-			// start state of the whole process. Only arriving here once per render session.
-			performRenderFrameSetupWork();
+			// no-op
 			break;
 		case DepthOfFieldRenderFrameState::FrameWait:
 			{
 				// check if counter is 0. If so, switch to next state, if not, decrease and do nothing
-				if(_frameWaitCounter <= 0)
+				if(_frameBlendWaitCounter <= 0)
 				{
-					_frameWaitCounter = 0;
-					// Ready to blend. As we're currently before the reshade effects are handled but after the frame has been drawn by the engine
-					// we can set blendFrame to true here and the shader will blend the current framebuffer this frame.
-					// This works because after this method, the uniforms are written to the shader, so the shader will pick the new value up
-					// when it's being drawn 
-					_blendFrame = true;
+					_frameBlendWaitCounter = 0;
+					if(_currentBlendFrame >= 0)
+					{
+						// Ready to blend. As we're currently before the reshade effects are handled but after the frame has been drawn by the engine
+						// we can set blendFrame to true here and the shader will blend the current framebuffer this frame.
+						// This works because after this method, the uniforms are written to the shader, so the shader will pick the new value up
+						// when it's being drawn 
+						_blendFrame = true;
+					}
 					// Setting the state to blending as we're blending after this method. The handling of this event is done in handlePresentAfterReshadeEffects
 					_renderFrameState = DepthOfFieldRenderFrameState::FrameBlending;
 				}
 				else
 				{
-					_frameWaitCounter--;
+					_frameBlendWaitCounter--;
 				}
 			}
 			break;
@@ -361,20 +368,24 @@ void DepthOfFieldController::handlePresentAfterReshadeEffects()
 	switch(_renderFrameState)
 	{
 		case DepthOfFieldRenderFrameState::Off:
-		case DepthOfFieldRenderFrameState::Start:
 		case DepthOfFieldRenderFrameState::FrameWait:
 			// no-op
+			break;
+		case DepthOfFieldRenderFrameState::Start:
+			// start state of the whole process. Only arriving here once per render session.
+			performRenderFrameSetupWork();
 			break;
 		case DepthOfFieldRenderFrameState::FrameBlending:
 			{
 				// Blending work has taken place, we're now done with that as the shader has run. We switch it off by resetting the variable.
-				// This variable is written to the shader at the end of the handler called before the reshade effects will be rendered, so
+				// This variable is written to the shader at the end of the handler called before the reshade effects will be rendered (reshadeBeginEffectsCalled), so
 				// it will take effect then. (the shader isn't run before that point so it's ok).
 				_blendFrame = false;
 				if(!_renderPaused)
 				{
-					_currentFrame++;
-					if(_currentFrame >= _numberOfFramesToRender)
+					_currentStepFrame++;
+					_currentBlendFrame++;
+					if(_currentBlendFrame >= _numberOfFramesToRender)
 					{
 						// we're done rendering
 						_renderFrameState = DepthOfFieldRenderFrameState::Off;
@@ -705,8 +716,14 @@ void DepthOfFieldController::startRender(reshade::api::effect_runtime* runtime)
 	reshade::log_message(reshade::log_level::info, "Dof render session started");
 
 	// set initial shader start state
+	_blendFrame = false;
 	_blendFactor = 0.0f;
-	_currentFrame = 0;
+	_currentStepFrame = 0;
+	_currentBlendFrame = (0-_numberOfFramesToWaitPerFrame) + _numberOfFramesToWaitForBlendingPerFrame;
+	if(_currentBlendFrame>0)
+	{
+		_currentBlendFrame = 0;
+	}
 	_numberOfFramesToRender = _cameraSteps.size();
 	_renderFrameState = DepthOfFieldRenderFrameState::Start;
 	_state = DepthOfFieldControllerState::Rendering;
@@ -784,7 +801,7 @@ void DepthOfFieldController::drawShape(ImDrawList* drawList, ImVec2 topLeftScree
 void DepthOfFieldController::renderProgressBar()
 {
 	const int totalAmountOfSteps = _cameraSteps.size();
-	const float progress = (float)_currentFrame / (float)totalAmountOfSteps;
+	const float progress = (float)_currentBlendFrame / (float)totalAmountOfSteps;
 	const float progress_saturated = IGCS::Utils::clampEx(progress, 0.0f, 1.0f);
 	char buf[128];
 	sprintf(buf, "%d/%d", (int)(progress_saturated * totalAmountOfSteps), totalAmountOfSteps);

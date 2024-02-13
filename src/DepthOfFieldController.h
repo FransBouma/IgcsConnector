@@ -152,6 +152,8 @@ public:
 
 	// setters
 	void setNumberOfFramesToWaitPerFrame(int newValue) { _numberOfFramesToWaitPerFrame = newValue; }
+	void setNumberOfFramesToWaitForBlendingPerFrame(int newValue) { _numberOfFramesToWaitForBlendingPerFrame = newValue; };
+
 	void setQuality(int newValue)
 	{
 		_quality = IGCS::Utils::clampEx(newValue, 1, 100);
@@ -227,6 +229,7 @@ public:
 	DepthOfFieldBlurType getBlurType() { return _blurType; }
 	int getNumberOfPointsInnermostRing() { return _numberOfPointsInnermostRing; }
 	int getNumberOfFramesToWaitPerFrame() { return _numberOfFramesToWaitPerFrame; }
+	int getNumberOfFramesToWaitForBlendingPerFrame() { return _numberOfFramesToWaitForBlendingPerFrame; }
 	bool getRenderPaused() { return _renderPaused; }
 	int getTotalNumberOfStepsToTake() { return _cameraSteps.size(); }
 	bool getShowProgressBarAsOverlay() { return _showProgressBarAsOverlay; }
@@ -338,12 +341,14 @@ private:
 
 	DepthOfFieldBlurType _blurType = DepthOfFieldBlurType::Circular;
 	DepthOfFieldRenderFrameState _renderFrameState = DepthOfFieldRenderFrameState::Off;
-	int _frameWaitCounter = 0;		// When 0 move the render state to the next state, otherwise decrease
-	int _currentFrame = -1;		// < 0: no frame, >= 0 the current frame, 0 based.
+	int _frameBlendWaitCounter = 0;	// When 0 move the frameblend state to the next state, otherwise decrease
+	int _currentStepFrame = -1;		// < 0: no frame, >= 0 the current frame data to step the camera to, 0 based.
+	int _currentBlendFrame = -1;	// < 0: no frame, >= 0 the current frame data to blend, 0 based.
 	bool _renderPaused = false;
 
 	int _numberOfFramesToRender = 0;
 	int _numberOfFramesToWaitPerFrame = 1;
+	int _numberOfFramesToWaitForBlendingPerFrame = 0;
 	int _quality;		// # of circles
 	int _numberOfPointsInnermostRing;
 	float _ringAngleOffset = 0.0f;
