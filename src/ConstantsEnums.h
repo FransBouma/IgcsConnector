@@ -39,10 +39,18 @@ enum class DepthOfFieldRenderOrder : int
 	Randomized,
 };
 
+
 enum class DepthOfFieldBlurType : int
 {
 	ApertureShape,
 	Circular,
+};
+
+
+enum class DepthOfFieldFrameWaitType : int
+{
+	Fast,
+	Classic,
 };
 
 

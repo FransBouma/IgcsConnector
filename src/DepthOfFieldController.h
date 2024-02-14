@@ -151,8 +151,8 @@ public:
 	void invalidateShapePoints() { calculateShapePoints(); }
 
 	// setters
-	void setNumberOfFramesToWaitPerFrame(int newValue) { _numberOfFramesToWaitPerFrame = newValue; }
-	void setNumberOfFramesToWaitForBlendingPerFrame(int newValue) { _numberOfFramesToWaitForBlendingPerFrame = newValue; };
+	void setNumberOfFramesToWaitPerFrame(int newValue) { _numberOfFramesToWait = IGCS::Utils::clampEx(newValue, 0, 20); }
+	void setFrameWaitType(DepthOfFieldFrameWaitType newValue) { _frameWaitType = newValue; }
 
 	void setQuality(int newValue)
 	{
@@ -228,8 +228,7 @@ public:
 	float getHighlightGammaFactor() { return _highlightGammaFactor; }
 	DepthOfFieldBlurType getBlurType() { return _blurType; }
 	int getNumberOfPointsInnermostRing() { return _numberOfPointsInnermostRing; }
-	int getNumberOfFramesToWaitPerFrame() { return _numberOfFramesToWaitPerFrame; }
-	int getNumberOfFramesToWaitForBlendingPerFrame() { return _numberOfFramesToWaitForBlendingPerFrame; }
+	int getNumberOfFramesToWaitPerFrame() { return _numberOfFramesToWait; }
 	bool getRenderPaused() { return _renderPaused; }
 	int getTotalNumberOfStepsToTake() { return _cameraSteps.size(); }
 	bool getShowProgressBarAsOverlay() { return _showProgressBarAsOverlay; }
@@ -241,9 +240,10 @@ public:
 	float getCAStrength() { return _caStrength; }
 	float getCAWidth() { return _caWidth; }
 	DepthOfFieldCAType getCAType() { return _caType; }
+	DepthOfFieldFrameWaitType getFrameWaitType() { return _frameWaitType; }
 
-	MagnifierSettings& getMagnifierSettings() { return _magnificationSettings; }		// this is a bit dirty...
-	ApertureShapeSettings& getApertureShapeSettings() { return _apertureShapeSettings; }						// same
+	MagnifierSettings& getMagnifierSettings() { return _magnificationSettings; }				// this is a bit dirty...
+	ApertureShapeSettings& getApertureShapeSettings() { return _apertureShapeSettings; }		// same
 
 	void setDebugBool1(bool newVal) { _debugBool1 = newVal; }
 	void setDebugBool2(bool newVal) { _debugBool2 = newVal; }
@@ -341,14 +341,13 @@ private:
 
 	DepthOfFieldBlurType _blurType = DepthOfFieldBlurType::Circular;
 	DepthOfFieldRenderFrameState _renderFrameState = DepthOfFieldRenderFrameState::Off;
-	int _frameBlendWaitCounter = 0;	// When 0 move the frameblend state to the next state, otherwise decrease
+	int _frameWaitCounter = 0;	// When 0 move the frameblend state to the next state, otherwise decrease
 	int _currentStepFrame = -1;		// < 0: no frame, >= 0 the current frame data to step the camera to, 0 based.
 	int _currentBlendFrame = -1;	// < 0: no frame, >= 0 the current frame data to blend, 0 based.
 	bool _renderPaused = false;
 
 	int _numberOfFramesToRender = 0;
-	int _numberOfFramesToWaitPerFrame = 1;
-	int _numberOfFramesToWaitForBlendingPerFrame = 0;
+	int _numberOfFramesToWait = 1;
 	int _quality;		// # of circles
 	int _numberOfPointsInnermostRing;
 	float _ringAngleOffset = 0.0f;
@@ -356,6 +355,7 @@ private:
 	DepthOfFieldRenderOrder _renderOrder = DepthOfFieldRenderOrder::InnerRingToOuterRing;
 	bool _showProgressBarAsOverlay = true;
 	ApertureShapeSettings _apertureShapeSettings;
+	DepthOfFieldFrameWaitType _frameWaitType = DepthOfFieldFrameWaitType::Fast;
 
 	ReshadeStateSnapshot _reshadeStateAtStart;
 	std::mutex _reshadeStateMutex;

@@ -194,6 +194,7 @@ void appendStateSnapshotAfterSnapshotOnPath(int pathIndex, int indexToAppendAfte
 	g_presentWorkQueue.push({ [pathIndex, indexToAppendAfter](effect_runtime* lambdaRuntime) {g_reshadeStateController.appendStateSnapshotAfterSnapshotOnPath(pathIndex, indexToAppendAfter, lambdaRuntime); } });
 }
 
+
 /// <summary>
 /// Update the state at offset stateIndex on path with index pathIndex to the current state
 /// </summary>
@@ -389,6 +390,44 @@ bool requiredTechniqueEnabled(const std::string& effectName, const std::string& 
 }
 
 
+/// Based on Reshade's functions doing the same thing but simplified as we only need it for ints
+///	Replaces controls like ImGui::DragInt("Quality", &quality, 1, 1, 100);
+///	Returns true if changed, false otherwise.
+static bool intDragWithButtons(const char* label, int* value, int speed, int min, int max, const char* toolTip=nullptr)
+{
+	const float button_size = ImGui::GetFrameHeight();
+	const float button_spacing = ImGui::GetStyle().ItemInnerSpacing.x;
+
+	ImGui::BeginGroup();
+	ImGui::PushID(label);
+
+	ImGui::SetNextItemWidth(ImGui::CalcItemWidth() - (2 * (button_spacing + button_size)));
+	bool toReturn = ImGui::DragInt("##v", value, speed, min, max);
+	if(nullptr!=toolTip && ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+	{
+		ImGui::SetTooltip(toolTip);
+	}
+	ImGui::SameLine(0, button_spacing);
+	if(ImGui::Button("<", ImVec2(button_size, 0)))
+	{
+		*value -= speed;
+		toReturn = true;
+	}
+	ImGui::SameLine(0, button_spacing);
+	if(ImGui::Button(">", ImVec2(button_size, 0)))
+	{
+		*value += speed;
+		toReturn = true;
+	}
+
+	ImGui::PopID();
+	ImGui::SameLine(0, button_spacing);
+	ImGui::TextUnformatted(label);
+	ImGui::EndGroup();
+	return toReturn;
+}
+
+
 static void displaySettings(reshade::api::effect_runtime* runtime)
 {
 	ImGui::AlignTextToFramePadding();
@@ -520,7 +559,7 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 							}
 
 							float focusDelta = g_depthOfFieldController.getXFocusDelta();
-							changed = ImGui::DragFloat("Focus delta X", &focusDelta, 0.0001f, -1.0f, 1.0f, "%.4f");
+							changed = ImGui::DragFloat("Focus delta X", &focusDelta, 0.00005f, -1.0f, 1.0f, "%.5f");
 							if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
 							{
 								ImGui::SetTooltip("Use this value to align the two images\non the spot you want to have in focus");
@@ -529,25 +568,36 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 							{
 								g_depthOfFieldController.setXFocusDelta(runtime, focusDelta);
 							}
-							int numberOfFramesToWaitPerFrame = g_depthOfFieldController.getNumberOfFramesToWaitPerFrame();
-							changed = ImGui::DragInt("Number of frames to wait per frame", &numberOfFramesToWaitPerFrame, 1, 1, 20);
+							int frameWaitType = (int)g_depthOfFieldController.getFrameWaitType();
+							changed = ImGui::Combo("Frame wait type", &frameWaitType, "Fast\0Classic (slower)\0\0");
 							if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
 							{
-								ImGui::SetTooltip("Use this value to define the blend delay.\nUsually 1 or 2. For engines with a long render pipeline you might to\nneed to increase this value. Increasing this value doesn't increase the render time.");
+								ImGui::SetTooltip("Fast is using a system which renders at full frame rate.\nYou need to pick the number of frames to wait value that gives a sharp focus area.\n\nClassic is slower, it uses the number of frames to wait to delay the next frame\nso the higher the value, the slower the rendering. Classis is more reliable to have sharp focus areas.");
+							}
+							if(changed)
+							{
+								g_depthOfFieldController.setFrameWaitType((DepthOfFieldFrameWaitType)frameWaitType);
+							}
+							std::string toolTipText = "";
+							switch(frameWaitType)
+							{
+								case (int)DepthOfFieldFrameWaitType::Fast:
+									toolTipText = "Use this value to define the blend delay.\nUsually 1 or 2. For engines with a long render pipeline you might to\nneed to increase this value. Increasing this value doesn't increase the render time.";
+									break;
+								case (int)DepthOfFieldFrameWaitType::Classic:
+									toolTipText = "Use this value to specify a delay during blending a frame.\nUsually 1 or higher but if the engine uses a lot of temporal effects\nyou might need to increase this value.\nIncreasing this value will increase the render time.";
+
+									break;
+							}
+							int numberOfFramesToWaitPerFrame = g_depthOfFieldController.getNumberOfFramesToWaitPerFrame();
+							changed = intDragWithButtons("Number of frames to wait per frame", &numberOfFramesToWaitPerFrame, 1, 1, 20, toolTipText.c_str());
+							if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+							{
+								ImGui::SetTooltip(toolTipText.c_str());
 							}
 							if(changed)
 							{
 								g_depthOfFieldController.setNumberOfFramesToWaitPerFrame(numberOfFramesToWaitPerFrame);
-							}
-							int numberOfBuffers = g_depthOfFieldController.getNumberOfFramesToWaitForBlendingPerFrame();
-							changed = ImGui::DragInt("Number of frames to wait for blending per frame", &numberOfBuffers, 1, 0, 20);
-							if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
-							{
-								ImGui::SetTooltip("Use this value to specify a delay during blending a frame.\nUsually 0 but if the engine uses a lot of temporal effects\nyou might need to increase this value.\nIncreasing this value will increase the render time.");
-							}
-							if(changed)
-							{
-								g_depthOfFieldController.setNumberOfFramesToWaitForBlendingPerFrame(numberOfBuffers);
 							}
 
 							ImGui::SeparatorText("Magnifier");
@@ -580,7 +630,7 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 							}
 
 							int quality = g_depthOfFieldController.getQuality();
-							changed = ImGui::DragInt("Quality", &quality, 1, 1, 100);
+							changed = intDragWithButtons("Quality", &quality, 1, 1, 100);
 							if(changed)
 							{
 								g_depthOfFieldController.setQuality(quality);
@@ -591,7 +641,7 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 									{
 										bool shapeSettingsChanged = false;
 										auto& shapeSettings = g_depthOfFieldController.getApertureShapeSettings();
-										shapeSettingsChanged |= ImGui::DragInt("Number of vertices", &shapeSettings.NumberOfVertices, 0.1f, 3, 10);
+										shapeSettingsChanged |= intDragWithButtons("Number of vertices", &shapeSettings.NumberOfVertices, 1, 3, 10);
 										shapeSettingsChanged |= ImGui::DragFloat("Rounding factor", &shapeSettings.RoundFactor, 0.001f, 0.0f, 1.0f);
 										shapeSettingsChanged |= ImGui::DragFloat("Rotation angle", &shapeSettings.RotationAngle, 0.001f, 0.0f, 1.0f);		// multiplier to 2PI.
 
@@ -604,7 +654,7 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 								case DepthOfFieldBlurType::Circular:
 									{
 										int numberOfPointsInnermostCircle = g_depthOfFieldController.getNumberOfPointsInnermostRing();
-										changed = ImGui::DragInt("Number of points of innermost ring", &numberOfPointsInnermostCircle, 1, 1, 100);
+										changed = intDragWithButtons("Number of points of innermost ring", &numberOfPointsInnermostCircle, 1, 1, 100);
 										if(changed)
 										{
 											g_depthOfFieldController.setNumberOfPointsInnermostRing(numberOfPointsInnermostCircle);

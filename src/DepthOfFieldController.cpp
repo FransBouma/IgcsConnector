@@ -154,7 +154,7 @@ void DepthOfFieldController::loadIniFileData(CDataFile& iniFile)
 	loadIntFromIni(iniFile, "NumberOfVertices", &_apertureShapeSettings.NumberOfVertices);
 	loadIntFromIni(iniFile, "Quality", &_quality);
 	loadIntFromIni(iniFile, "NumberOfPointsInnermostRing", &_numberOfPointsInnermostRing);
-	loadIntFromIni(iniFile, "NumberOfFramesToWaitPerFrame", &_numberOfFramesToWaitPerFrame);
+	loadIntFromIni(iniFile, "NumberOfFramesToWaitPerFrame", &_numberOfFramesToWait);
 	loadBoolFromIni(iniFile, "ShowProgressBarAsOverlay", &_showProgressBarAsOverlay, true);
 
 	int intValueFromIni = 0;
@@ -184,7 +184,7 @@ void DepthOfFieldController::saveIniFileData(CDataFile& iniFile)
 	iniFile.SetInt("NumberOfVertices", _apertureShapeSettings.NumberOfVertices, "", "DepthOfField");
 	iniFile.SetInt("Quality", _quality, "", "DepthOfField");
 	iniFile.SetInt("NumberOfPointsInnermostRing", _numberOfPointsInnermostRing, "", "DepthOfField");
-	iniFile.SetInt("NumberOfFramesToWaitPerFrame", _numberOfFramesToWaitPerFrame, "", "DepthOfField");
+	iniFile.SetInt("NumberOfFramesToWaitPerFrame", _numberOfFramesToWait, "", "DepthOfField");
 	iniFile.SetBool("ShowProgressBarAsOverlay", _showProgressBarAsOverlay, "", "DepthOfField");
 	iniFile.SetInt("BlurType", (int)_blurType, "", "DepthOfField");
 	iniFile.SetInt("CAType", (int)_caType, "", "DepthOfField");
@@ -303,7 +303,15 @@ void DepthOfFieldController::performRenderFrameSetupWork()
 		const auto& currentBlendFrameData = _cameraSteps[_currentBlendFrame];
 		_xAlignmentDelta = currentBlendFrameData.xAlignmentDelta;
 		_yAlignmentDelta = currentBlendFrameData.yAlignmentDelta;
-		_frameBlendWaitCounter = _numberOfFramesToWaitForBlendingPerFrame;
+		switch(_frameWaitType)
+		{
+			case DepthOfFieldFrameWaitType::Fast:
+				_frameWaitCounter = 0;
+				break;
+			case DepthOfFieldFrameWaitType::Classic:
+				_frameWaitCounter = _numberOfFramesToWait;
+				break;
+		}
 		_blendFactor = 1.0f / (static_cast<float>(_currentBlendFrame) + 1.0f);		// frame start at 0 so +1, to get 1/1=100% blend factor for first frame
 
 		//since the lerp blending implicitly already divides the sum by N, we must not do it again, so compensate
@@ -334,9 +342,9 @@ void DepthOfFieldController::handlePresentBeforeReshadeEffects()
 		case DepthOfFieldRenderFrameState::FrameWait:
 			{
 				// check if counter is 0. If so, switch to next state, if not, decrease and do nothing
-				if(_frameBlendWaitCounter <= 0)
+				if(_frameWaitCounter <= 0)
 				{
-					_frameBlendWaitCounter = 0;
+					_frameWaitCounter = 0;
 					if(_currentBlendFrame >= 0)
 					{
 						// Ready to blend. As we're currently before the reshade effects are handled but after the frame has been drawn by the engine
@@ -350,7 +358,7 @@ void DepthOfFieldController::handlePresentBeforeReshadeEffects()
 				}
 				else
 				{
-					_frameBlendWaitCounter--;
+					_frameWaitCounter--;
 				}
 			}
 			break;
@@ -436,7 +444,7 @@ float DepthOfFieldController::calculateChannelDimFactor(float angleSegment, floa
 void DepthOfFieldController::applyFringe(float ringRadiusNormalized, float sampleAngle, CameraLocation& sample)
 {
 	const float transitionWidth = 0.5f / (float)_quality;
-	//perform a linear step with the spacing of a ring radius 
+	// perform a linear step with the spacing of a ring radius
 	
 	//(x-a)/(b-a)
 	const float fringeRampStart = 1.0f - _fringeWidth - transitionWidth;
@@ -556,7 +564,8 @@ void DepthOfFieldController::createCircleDoFPoints()
 
 			CameraLocation sample = {xDelta, yDelta, x * -focusDeltaHalf, y * focusDeltaHalf, 1.0f, 1.0f, 1.0f};	
 			applySphericalAberration(ringDistance, sample);
-			applyFringe(ringDistance, angle, sample);
+			// angle 0 is on the right of the circle but we want it to be up top, so we subtract 1/2pi from it so the angle for the color is transposed 90 degrees.
+			applyFringe(ringDistance, fmod((angle-(6.28318530717958f / 4.0f)) + 6.28318530717958f, 6.28318530717958f), sample);
 			_cameraSteps.push_back(sample);
 
 			angle += anglePerPoint;
@@ -719,10 +728,14 @@ void DepthOfFieldController::startRender(reshade::api::effect_runtime* runtime)
 	_blendFrame = false;
 	_blendFactor = 0.0f;
 	_currentStepFrame = 0;
-	_currentBlendFrame = (0-_numberOfFramesToWaitPerFrame) + _numberOfFramesToWaitForBlendingPerFrame;
-	if(_currentBlendFrame>0)
+	switch(_frameWaitType)
 	{
-		_currentBlendFrame = 0;
+		case DepthOfFieldFrameWaitType::Classic:
+			_currentBlendFrame = 0;
+			break;
+		case DepthOfFieldFrameWaitType::Fast:
+			_currentBlendFrame = 0-_numberOfFramesToWait;
+			break;
 	}
 	_numberOfFramesToRender = _cameraSteps.size();
 	_renderFrameState = DepthOfFieldRenderFrameState::Start;
