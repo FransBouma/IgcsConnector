@@ -120,8 +120,30 @@ of settings like drop down lists and e.g. checkboxes.
 
 You can enable as much ReShade effects as you like, so go wild!
 
+### Camera data made available to Reshade shaders
+
+The IGCS Connector, starting with v2.4, exposes the camera data sent to it by the connected camera tools to reshade shaders in the form of named uniforms. These are:
+
+Name | Type | Specifics
+--|--|--
+IGCS_cameraDataAvailable			| bool      | 
+IGCS_cameraEnabled				| bool      | 
+IGCS_cameraMovementLocked		| bool      | 
+IGCS_cameraFoV					| float		| degrees
+IGCS_cameraWorldPosition			| float3    | 
+IGCS_cameraOrientation			| float4	| quaternion (x,y,z,w)
+IGCS_cameraViewMatrix4x4			| float4x4  | 
+IGCS_cameraProjectionMatrix4x4LH	| float4x4	| calculated from fov + aspect ratio + near of 0.1 and far of 10000.0, using left handed row major DirectX math
+IGCS_cameraUp					| float3	| up vector of 3x3 part of view matrix
+IGCS_cameraRight					| float3	| right vector of 3x3 part of view matrix
+IGCS_cameraForward				| float3	| forward vector of 3x3 part of view matrix
+IGCS_cameraRotationPitch			| float		| radians
+IGCS_cameraRotationYaw			| float		| radians
+IGCS_cameraRotationRoll			| float		| radians
+
+For how to use them, please see [the IGCS Source tester shader in this repo](https://github.com/FransBouma/IgcsConnector/blob/main/src/Shader/IgcsSourceTester.fx)
+
 ## Supported cameras
 
 Camera's build with the latest IGCS system are supported. All cameras are available on my [Patreon](https://patreon.com/Otis_Inf). Please check 
 the [camera documentation site](https://opm.fransbouma.com) for details per camera if they support the IGCSConnector and which version. 
-
