@@ -47,7 +47,14 @@ namespace IgcsDOF
 	// ------------------------------
 	// Visible values
 	// ------------------------------
-
+				
+	uniform float SetupAlpha <
+		ui_label = "Setup alpha";
+		ui_type = "drag";
+		ui_min = 0.2; ui_max = 0.8;
+		ui_step = 0.001;
+	> = 0.5;
+	
 	// ------------------------------
 	// Hidden values, set by the connector
 	// ------------------------------
@@ -157,14 +164,6 @@ namespace IgcsDOF
 		ui_min = 0.01; ui_max = 1.000;
 		hidden=true;
 	> = float2(0.5f, 0.5f);
-				
-	uniform float SetupAlpha <
-		ui_label = "Setup alpha";
-		ui_type = "drag";
-		ui_min = 0.2; ui_max = 0.8;
-		ui_step = 0.001;
-		hidden=true;
-	> = 0.5;
 
 	uniform float CateyeRadiusStart <
 		ui_label = "Cateye Bokeh Radius start";
