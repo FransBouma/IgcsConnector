@@ -153,6 +153,10 @@ public:
 	// setters
 	void setNumberOfFramesToWaitPerFrame(int newValue) { _numberOfFramesToWait = IGCS::Utils::clampEx(newValue, 0, 20); }
 	void setFrameWaitType(DepthOfFieldFrameWaitType newValue) { _frameWaitType = newValue; }
+	void setCatEyeRadiusStart(float newValue) { _catEyeRadiusStart = IGCS::Utils::clampEx(newValue, 0.0f, 1.0f); }
+	void setCatEyeRadiusEnd(float newValue) { _catEyeRadiusEnd = IGCS::Utils::clampEx(newValue, 0.0f, 1.0f); }
+	void setCatEyeBokehIntensity(float newValue) { _catEyeBokehIntensity = IGCS::Utils::clampEx(newValue, -1.0f, 1.0f); }
+	void setAddCatEyeVignette(bool newValue) { _addCatEyeVignette = newValue; }
 
 	void setQuality(int newValue)
 	{
@@ -241,6 +245,10 @@ public:
 	float getCAWidth() { return _caWidth; }
 	DepthOfFieldCAType getCAType() { return _caType; }
 	DepthOfFieldFrameWaitType getFrameWaitType() { return _frameWaitType; }
+	float getCatEyeRadiusStart() { return _catEyeRadiusStart; }
+	float getCatEyeRadiusEnd() { return _catEyeRadiusEnd; }
+	float getCatEyeBokehIntensity() { return _catEyeBokehIntensity; }
+	bool getAddCatEyeVignette() { return _addCatEyeVignette; }
 
 	MagnifierSettings& getMagnifierSettings() { return _magnificationSettings; }				// this is a bit dirty...
 	ApertureShapeSettings& getApertureShapeSettings() { return _apertureShapeSettings; }		// same
@@ -334,6 +342,10 @@ private:
 	float _caWidth = 0.1f;
 	float _sampleWeightRGB[3] = {1.0f, 1.0f, 1.0f};
 	DepthOfFieldCAType _caType = DepthOfFieldCAType::RGB;
+	float _catEyeRadiusStart = 0.2f;
+	float _catEyeRadiusEnd = 0.7;
+	float _catEyeBokehIntensity = 0.0f;
+	bool _addCatEyeVignette = false;
 
 	MagnifierSettings _magnificationSettings;
 

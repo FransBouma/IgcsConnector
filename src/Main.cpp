@@ -741,6 +741,46 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 							{
 								g_depthOfFieldController.setCAWidth(caWidth);
 							}
+							float catEyeBokehIntensity = g_depthOfFieldController.getCatEyeBokehIntensity();
+							changed = ImGui::DragFloat("Cateye bokeh intensity", &catEyeBokehIntensity, 0.001f, -1.0f, 1.0f);
+							if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+							{
+								ImGui::SetTooltip("The intensity of the cat-eye effect in the bokeh.\nNegative values cut the bokeh shapes from the inside\nPositive values cut the bokeh shapes from the outside\nZero means no cateye bokeh.");
+							}
+							if(changed)
+							{
+								g_depthOfFieldController.setCatEyeBokehIntensity(catEyeBokehIntensity);
+							}
+							float catEyeRadiusStart = g_depthOfFieldController.getCatEyeRadiusStart();
+							changed = ImGui::DragFloat("Cateye bokeh radius start", &catEyeRadiusStart, 0.001f, 0.0f, 1.0f);
+							if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+							{
+								ImGui::SetTooltip("The distance from the center of the screen where the cateye bokeh effect has to start.\nThis value has to be smaller than the Cateye bokeh radius end value.");
+							}
+							if(changed)
+							{
+								g_depthOfFieldController.setCatEyeRadiusStart(catEyeRadiusStart);
+							}
+							float catEyeRadiusEnd = g_depthOfFieldController.getCatEyeRadiusEnd();
+							changed = ImGui::DragFloat("Cateye bokeh radius end", &catEyeRadiusEnd, 0.001f, 0.0f, 1.0f);
+							if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+							{
+								ImGui::SetTooltip("The distance from the center of the screen where the cateye bokeh effect has to end.\nThis value has to be bigger than the Cateye bokeh radius start value.");
+							}
+							if(changed)
+							{
+								g_depthOfFieldController.setCatEyeRadiusEnd(catEyeRadiusEnd);
+							}
+							bool addCatEyeVignette = g_depthOfFieldController.getAddCatEyeVignette();
+							changed = ImGui::Checkbox("Add a vignette darkening to the cateye bokeh", &addCatEyeVignette);
+							if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+							{
+								ImGui::SetTooltip("If checked, a vignette is applied to the cateye bokeh effect.\nHas no effect if cateye bokeh intensity is (close to) 0.");
+							}
+							if(changed)
+							{
+								g_depthOfFieldController.setAddCatEyeVignette(addCatEyeVignette);
+							}
 
 							int renderOrder = (int)g_depthOfFieldController.getRenderOrder();
 							changed = ImGui::Combo("Render order", &renderOrder, "Inner to outer ring\0Outer to inner ring\0Random\0\0");

@@ -132,6 +132,11 @@ void DepthOfFieldController::writeVariableStateToShader(reshade::api::effect_run
 	setUniformFloatVariable(runtime, "MagnificationFactor", _magnificationSettings.MagnificationFactor);
 	setUniformFloat2Variable(runtime, "MagnificationArea", _magnificationSettings.WidthMagnifierArea, _magnificationSettings.HeightMagnifierArea);
 	setUniformFloat2Variable(runtime, "MagnificationLocationCenter", _magnificationSettings.XMagnifierLocation, _magnificationSettings.YMagnifierLocation);
+
+	setUniformBoolVariable(runtime, "CateyeVignette", _addCatEyeVignette);
+	setUniformFloatVariable(runtime, "CateyeRadiusStart", _catEyeRadiusStart);
+	setUniformFloatVariable(runtime, "CateyeRadiusEnd", _catEyeRadiusEnd);
+	setUniformFloatVariable(runtime, "CateyeIntensity", _catEyeBokehIntensity);
 }
 
 
@@ -156,6 +161,10 @@ void DepthOfFieldController::loadIniFileData(CDataFile& iniFile)
 	loadIntFromIni(iniFile, "NumberOfPointsInnermostRing", &_numberOfPointsInnermostRing);
 	loadIntFromIni(iniFile, "NumberOfFramesToWaitPerFrame", &_numberOfFramesToWait);
 	loadBoolFromIni(iniFile, "ShowProgressBarAsOverlay", &_showProgressBarAsOverlay, true);
+	loadBoolFromIni(iniFile, "AddCatEyeVignette", &_addCatEyeVignette, false);
+	loadFloatFromIni(iniFile, "CatEyeRadiusStart", &_catEyeRadiusStart);
+	loadFloatFromIni(iniFile, "CatEyeRadiusEnd", &_catEyeRadiusEnd);
+	loadFloatFromIni(iniFile, "CatEyeBokehIntensity", &_catEyeBokehIntensity);
 
 	int intValueFromIni = 0;
 	loadIntFromIni(iniFile, "BlurType", &intValueFromIni);
@@ -188,6 +197,10 @@ void DepthOfFieldController::saveIniFileData(CDataFile& iniFile)
 	iniFile.SetBool("ShowProgressBarAsOverlay", _showProgressBarAsOverlay, "", "DepthOfField");
 	iniFile.SetInt("BlurType", (int)_blurType, "", "DepthOfField");
 	iniFile.SetInt("CAType", (int)_caType, "", "DepthOfField");
+	iniFile.SetBool("AddCatEyeVignette", _addCatEyeVignette, "", "DepthOfField");
+	iniFile.SetFloat("CatEyeRadiusStart", _catEyeRadiusStart, "", "DepthOfField");
+	iniFile.SetFloat("CatEyeRadiusEnd", _catEyeRadiusEnd, "", "DepthOfField");
+	iniFile.SetFloat("CatEyeBokehIntensity", _catEyeBokehIntensity, "", "DepthOfField");
 }
 
 
