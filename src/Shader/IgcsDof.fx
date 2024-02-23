@@ -40,21 +40,21 @@
 
 namespace IgcsDOF
 {
-	#define IGCS_DOF_SHADER_VERSION "v2.5.0"
+	#define IGCS_DOF_SHADER_VERSION "v2.5.1"
 	
 // #define IGCS_DOF_DEBUG	
 	
 	// ------------------------------
 	// Visible values
 	// ------------------------------
-				
+						
 	uniform float SetupAlpha <
 		ui_label = "Setup alpha";
 		ui_type = "drag";
 		ui_min = 0.2; ui_max = 0.8;
 		ui_step = 0.001;
 	> = 0.5;
-	
+
 	// ------------------------------
 	// Hidden values, set by the connector
 	// ------------------------------
@@ -217,7 +217,7 @@ namespace IgcsDOF
 	storage StorageBlendAccumulate  { Texture = texBlendAccumulate;  };
 
 	texture texDisplay 		{ Width = BUFFER_WIDTH; Height = BUFFER_HEIGHT; Format = RGB10A2; };
-	sampler SamplerDisplay	{ Texture = texDisplay;  };
+	sampler SamplerDisplay	{ Texture = texDisplay;  MagFilter = POINT; MinFilter = POINT; MipFilter = POINT;};
 	storage StorageDisplay  { Texture = texDisplay;  };
 	
 	float3 ConeOverlap(float3 fragment)
@@ -297,8 +297,8 @@ namespace IgcsDOF
 	{
 		float2 uv = (i.dispatchthreadid.xy + 0.5) * BUFFER_PIXEL_SIZE;
 		
-		if(SessionState == 0 //idle, skip
-		|| SessionState == 4 //done accumulating, skip
+		if(SessionState <= 0 //idle, skip
+		|| SessionState >= 4 //done accumulating, skip
 		|| i.dispatchthreadid.x >= BUFFER_WIDTH || i.dispatchthreadid.y >= BUFFER_HEIGHT) 
 		{
 			return;
@@ -315,7 +315,7 @@ namespace IgcsDOF
 		else if(SessionState == 2)
 		{
 			float2 shifted_uv = uv - float2(FocusDelta, 0);
-			float3 currentFragment = tex2Dlod(BackBufferPoint, float4(shifted_uv, 0, 0)).rgb;
+			float3 currentFragment = tex2Dlod(ReShade::BackBuffer, float4(shifted_uv, 0, 0)).rgb;
 			float3 cachedFragment  = tex2Dfetch(StorageBlendAccumulate, i.dispatchthreadid.xy).rgb;
 			float3 fragment = lerp(cachedFragment, currentFragment, SetupAlpha);
 			tex2Dstore(StorageDisplay, i.dispatchthreadid.xy, float4(fragment, 1));
@@ -385,16 +385,10 @@ namespace IgcsDOF
 		}
 	}
 
-
 	void PS_Output(float4 vpos : SV_Position, float2 texcoord : TEXCOORD, out float3 fragment : SV_Target0)
 	{
-		fragment = tex2Dlod(SamplerDisplay, float4(texcoord, 0, 0)).rgb;		
-	}
+		fragment = tex2Dlod(SamplerDisplay, float4(texcoord, 0, 0)).rgb;
 
-
-	void PS_HandleMagnification(float4 vpos : SV_Position, float2 texcoord : TEXCOORD, out float4 fragment : SV_Target0)
-	{
-		fragment = tex2Dlod(ReShade::BackBuffer, float4(texcoord, 0, 0));
 		if(SessionState==2 && ShowMagnifier)
 		{
 			float2 areaTopLeft = MagnificationLocationCenter - (MagnificationArea / 2.0f);
@@ -403,11 +397,10 @@ namespace IgcsDOF
 			{
 				// inside magnify area
 				float2 sourceCoord = ((texcoord - MagnificationLocationCenter) / MagnificationFactor) + MagnificationLocationCenter;
-				fragment = tex2Dlod(BackBufferPoint, float4(sourceCoord, 0, 0));
+				fragment = tex2Dlod(SamplerDisplay, float4(sourceCoord, 0, 0)).rgb;
 			}
 		}
 	}
-
 
 	technique IgcsDOF
 #if __RESHADE__ >= 40000
@@ -423,11 +416,6 @@ namespace IgcsDOF
 #endif
 	{
 		pass { ComputeShader = IGCSCS<32, 32>;DispatchSizeX = CEIL_DIV(BUFFER_WIDTH, 32);DispatchSizeY = CEIL_DIV(BUFFER_HEIGHT, 32); }
-		pass { VertexShader = VS_Output; PixelShader = PS_Output; }		// to show the buffer written by the compute shader. 
-		pass HandleMagnifierPass 
-		{
-			// simple pass to show the magnifier. Done here so the blended setup buffer is visible in the magnified area, as it's constructed in the compute shader. 
-			VertexShader = PostProcessVS; PixelShader = PS_HandleMagnification; 
-		} 
+		pass { VertexShader = VS_Output; PixelShader = PS_Output; }		// to show the buffer written by the compute shader.  
 	}
 }
