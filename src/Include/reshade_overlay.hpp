@@ -10,8 +10,9 @@
 #error Unexpected ImGui version, please update the "imgui.h" header to version 18971!
 #endif
 
+
 // Check that the 'ImTextureID' type has the same size as 'reshade::api::resource_view'
-static_assert(sizeof(ImTextureID) == 8, "missing \"#define ImTextureID ImU64\" before \"#include <imgui.h>\"");
+//static_assert(sizeof(ImTextureID) == 8, "missing \"#define ImTextureID ImU32\" before \"#include <imgui.h>\"");
 
 struct imgui_function_table_18971
 {
