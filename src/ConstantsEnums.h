@@ -116,7 +116,7 @@ enum class ScreenshotFiletype : int
 };
 
 
-enum class ScreenshotSessionStartReturnCode : int
+enum class ScreenshotSessionStartReturnCode : uint8_t
 {
 	AllOk = 0,
 	Error_CameraNotEnabled = 1,
