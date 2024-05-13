@@ -40,7 +40,7 @@
 
 namespace IgcsDOF
 {
-	#define IGCS_DOF_SHADER_VERSION "v2.5.1"
+	#define IGCS_DOF_SHADER_VERSION "v2.5.2"
 	
 // #define IGCS_DOF_DEBUG	
 	
@@ -368,8 +368,8 @@ namespace IgcsDOF
 			result.rgb /= result.w; 
 			result.rgb = CorrectForWhiteAccentuation(result.rgb);
 			float3 dither = goldenDither(i.dispatchthreadid.xy);
-			dither *= 0.499; //slightly limit so we don't dither fully flat areas (which can happen with exactly +-0.5)
-			dither *= exp2(-BUFFER_COLOR_BIT_DEPTH); //1.0/256.0 or 1.0/1024.0 depending on 8 or 10 bit backbuffer
+			dither *= 0.999; //slightly limit so we don't dither fully flat areas (which can happen with exactly +-0.5)
+			dither *= exp2(-8); //1.0/256.0. Using bitdepth here could lead to banding because windows wrongly reports 10 bit buffers on SDR setups while the buffer is in fact 8 bit. 
 			result.rgb = saturate(result.rgb + dither);
 			tex2Dstore(StorageDisplay, i.dispatchthreadid.xy, float4(result.rgb, 1));			
 		}
