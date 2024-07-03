@@ -116,7 +116,12 @@ enum class ScreenshotFiletype : int
 };
 
 
-enum class ScreenshotSessionStartReturnCode : uint8_t
+enum class ScreenshotSessionStartReturnCode :
+#ifdef IGCS32BIT
+uint8_t
+#else
+int
+#endif
 {
 	AllOk = 0,
 	Error_CameraNotEnabled = 1,
