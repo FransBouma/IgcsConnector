@@ -31,7 +31,12 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /////////////////////////////////////////////////////////////////////////
 #define IMGUI_DISABLE_INCLUDE_IMCONFIG_H
-#define ImTextureID unsigned long long // Change ImGui texture ID type to that of a 'reshade::api::resource_view' handle
+// Change ImGui texture ID type to that of a 'reshade::api::resource_view' handle
+#ifdef IGCS32BIT
+#define ImTextureID ImU32
+#else
+#define ImTextureID unsigned long long 
+#endif
 
 #include "stdafx.h"
 #include "OverlayControl.h"

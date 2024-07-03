@@ -34,6 +34,12 @@
 #include <cstdint>
 #include "ConstantsEnums.h"
 
+#ifdef IGCS32BIT
+#define CALLCONVENTION __cdecl
+#else
+#define CALLCONVENTION __stdcall
+#endif
+
 /// <summary>
 /// Starts a screenshot session of the specified type
 /// </summary>
@@ -46,7 +52,7 @@
 /// 3 if there was already a session active
 /// 4 if camera feature isn't available
 /// 5 if another error occurred</returns>
-typedef ScreenshotSessionStartReturnCode(__cdecl* IGCS_StartScreenshotSession)(uint8_t type);
+typedef ScreenshotSessionStartReturnCode(CALLCONVENTION* IGCS_StartScreenshotSession)(uint8_t type);
 /// <summary>
 /// Rotates the camera in the current session over the specified stepAngle.
 /// </summary>
@@ -54,7 +60,7 @@ typedef ScreenshotSessionStartReturnCode(__cdecl* IGCS_StartScreenshotSession)(u
 /// stepAngle is the angle (in radians) to rotate over to the right. Negative means the camera will rotate to the left.
 /// </param>
 ///	<remarks>stepAngle isn't divided by movementspeed/rotation speed yet, so it has to be done locally in the camerafeaturebase.</remarks>
-typedef void(__cdecl* IGCS_MoveCameraPanorama)(float stepAngle);
+typedef void(CALLCONVENTION* IGCS_MoveCameraPanorama)(float stepAngle);
 /// <summary>
 /// Moves the camera up/down/left/right based on the values specified and whether that's relative to the start location or to the current camera location.
 /// </summary>
@@ -62,11 +68,11 @@ typedef void(__cdecl* IGCS_MoveCameraPanorama)(float stepAngle);
 /// <param name="stepUpDown">The amount to step up/down. Negative values with make the camera move down, positive values make the camera move up</param>
 /// <param name="fovDegrees">The fov in degrees to use for the step. If &lt= 0, the value is ignored</param>
 /// <param name="fromStartPosition">If true the values specified will be relative to the start location of the session, otherwise to the current location of the camera</param>
-typedef void(__cdecl* IGCS_MoveCameraMultishot)(float stepLeftRight, float stepUpDown, float fovDegrees, bool fromStartPosition);
+typedef void(CALLCONVENTION* IGCS_MoveCameraMultishot)(float stepLeftRight, float stepUpDown, float fovDegrees, bool fromStartPosition);
 /// <summary>
 /// Ends the active screenshot session, restoring camera data if required.
 /// </summary>
-typedef void(__cdecl* IGCS_EndScreenshotSession)();
+typedef void(CALLCONVENTION* IGCS_EndScreenshotSession)();
 
 
 /// <summary>
