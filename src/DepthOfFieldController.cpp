@@ -211,7 +211,7 @@ void DepthOfFieldController::startSession(reshade::api::effect_runtime* runtime)
 		return;
 	}
 	const auto sessionStartResult = _cameraToolsConnector.startScreenshotSession((uint8_t)ScreenshotType::MultiShot);
-	if(sessionStartResult!=ScreenshotSessionStartReturnCode::AllOk)
+	if (sessionStartResult != ScreenshotSessionStartReturnCode::AllOk)
 	{
 		displayScreenshotSessionStartError(sessionStartResult);
 		return;
