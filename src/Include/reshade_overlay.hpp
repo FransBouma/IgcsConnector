@@ -11,11 +11,7 @@
 #endif
 
 // Check that the 'ImTextureID' type has the same size as 'reshade::api::resource_view'
-#ifdef IGCS32BIT
-static_assert(sizeof(ImTextureID) == 4, "missing \"#define ImTextureID ImU32\" before \"#include <imgui.h>\"");
-#else
 static_assert(sizeof(ImTextureID) == 8, "missing \"#define ImTextureID unsigned long long\" before \"#include <imgui.h>\"");
-#endif
 
 struct imgui_function_table_18971
 {
