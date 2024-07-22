@@ -571,7 +571,7 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 							changed = ImGui::Combo("Frame wait type", &frameWaitType, "Fast\0Classic (slower)\0\0");
 							if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
 							{
-								ImGui::SetTooltip("Fast is using a system which renders at full frame rate.\nYou need to pick the number of frames to wait value that gives a sharp focus area.\n\nClassic is slower, it uses the number of frames to wait to delay the next frame\nso the higher the value, the slower the rendering. Classis is more reliable to have sharp focus areas.");
+								ImGui::SetTooltip("Fast is using a system which renders at full frame rate.\nYou need to pick the number of frames to wait value that gives a sharp focus area.\n\nClassic is slower, it uses the number of frames to wait to delay the next frame\nso the higher the value, the slower the rendering. Classic is more reliable to have sharp focus areas.");
 							}
 							if(changed)
 							{
