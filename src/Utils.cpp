@@ -81,14 +81,14 @@ namespace IGCS::Utils
 	}
 
 
-	void logLineToReshade(const reshade::log_level logLevel, const char* fmt, ...)
+	void logLineToReshade(const reshade::log::level logLevel, const char* fmt, ...)
 	{
 		va_list args;
 		va_start(args, fmt);
 		const std::string formattedString = IGCS::Utils::formatStringVa(fmt, args);
 		va_end(args);
 
-		reshade::log_message(logLevel, formattedString.c_str());
+		reshade::log::message(logLevel, formattedString.c_str());
 	}
 
 

@@ -61,8 +61,8 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_UK
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 2,5,1,0
- PRODUCTVERSION 2,5,1,0
+ FILEVERSION 2,5,3,0
+ PRODUCTVERSION 2,5,3,0
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -78,13 +78,13 @@ BEGIN
         BLOCK "040004b0"
         BEGIN
             VALUE "CompanyName", "Frans 'Otis_Inf' Bouma"
-            VALUE "FileDescription", "IGCS Connection Addon for ReShade 5.9+"
-            VALUE "FileVersion", "2.5.1.0"
+            VALUE "FileDescription", "IGCS Connection Addon for ReShade 6.4+"
+            VALUE "FileVersion", "2.5.3.0"
             VALUE "InternalName", "IgcsConnector.dll"
-            VALUE "LegalCopyright", "Copyright (C) 2024 Frans Bouma"
+            VALUE "LegalCopyright", "Copyright (C) 2025 Frans Bouma"
             VALUE "OriginalFilename", "IgcsConnector.dll"
-            VALUE "ProductName", "IGCS Connection addon for ReShade 5.9+"
-            VALUE "ProductVersion", "2.5.1.0"
+            VALUE "ProductName", "IGCS Connection addon for ReShade 6.4+"
+            VALUE "ProductVersion", "2.5.3.0"
         END
     END
     BLOCK "VarFileInfo"

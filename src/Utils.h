@@ -35,7 +35,7 @@ namespace IGCS::Utils
 	float degreesToRadians(float angleInDegrees);
 	std::string formatString(const char* fmt, ...);
 	std::string formatStringVa(const char* fmt, va_list args);
-	void logLineToReshade(const reshade::log_level logLevel, const char* fmt, ...);
+	void logLineToReshade(const reshade::log::level logLevel, const char* fmt, ...);
 
 	BYTE CharToByte(char c);
 	bool stringStartsWith(const char *a, const char *b);

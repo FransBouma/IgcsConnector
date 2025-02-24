@@ -43,16 +43,16 @@
 
 void ReshadeStateSnapshot::logContents()
 {
-	reshade::log_message(reshade::log_level::info, "\tTechniques: ");
+	reshade::log::message(reshade::log::level::info, "\tTechniques: ");
 	for(auto& kvp : _techniqueEnabledPerName)
 	{
-		reshade::log_message(reshade::log_level::info, IGCS::Utils::formatString("\t\t%s. Enabled: %s", kvp.first.c_str(), kvp.second ? "true" : "false").c_str());
+		reshade::log::message(reshade::log::level::info, IGCS::Utils::formatString("\t\t%s. Enabled: %s", kvp.first.c_str(), kvp.second ? "true" : "false").c_str());
 	}
 
-	reshade::log_message(reshade::log_level::info, "\tEffects: ");
+	reshade::log::message(reshade::log::level::info, "\tEffects: ");
 	for(const auto& effectName : _effectStatePerEffectName | std::views::keys)
 	{
-		reshade::log_message(reshade::log_level::info, IGCS::Utils::formatString("\t\t%s", effectName.c_str()).c_str());
+		reshade::log::message(reshade::log::level::info, IGCS::Utils::formatString("\t\t%s", effectName.c_str()).c_str());
 	}
 }
 

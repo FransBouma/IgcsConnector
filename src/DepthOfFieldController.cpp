@@ -411,7 +411,7 @@ void DepthOfFieldController::handlePresentAfterReshadeEffects()
 						// we're done rendering
 						_renderFrameState = DepthOfFieldRenderFrameState::Off;
 						_state = DepthOfFieldControllerState::Done;
-						reshade::log_message(reshade::log_level::info, "Dof render session completed");
+						reshade::log::message(reshade::log::level::info, "Dof render session completed");
 					}
 					else
 					{
@@ -735,7 +735,7 @@ void DepthOfFieldController::startRender(reshade::api::effect_runtime* runtime)
 		return;
 	}
 
-	reshade::log_message(reshade::log_level::info, "Dof render session started");
+	reshade::log::message(reshade::log::level::info, "Dof render session started");
 
 	// set initial shader start state
 	_blendFrame = false;
