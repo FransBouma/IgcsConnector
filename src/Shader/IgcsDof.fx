@@ -40,7 +40,7 @@
 
 namespace IgcsDOF
 {
-	#define IGCS_DOF_SHADER_VERSION "v2.5.2"
+	#define IGCS_DOF_SHADER_VERSION "v2.5.4"
 	
 // #define IGCS_DOF_DEBUG	
 	
@@ -346,13 +346,20 @@ namespace IgcsDOF
 
 			float distFromCenter = length(cateyeOffset);
 			cateyeOffset /= max(1e-6, distFromCenter);
-	
-			distFromCenter = linearstep(CateyeRadiusStart, CateyeRadiusEnd, distFromCenter) * sqrt(2.0) * CateyeIntensity; //negative value occludes discs from the other side
-			cateyeOffset *= distFromCenter;
-			normalizedOffset += cateyeOffset; 
+			
+			 // makes an area for falloff so we know where to apply the mask
+            float catseyeFalloff = smoothstep(CateyeRadiusStart - 0.001, CateyeRadiusStart + 0.001, distFromCenter);
+            float effectFactor = catseyeFalloff * step(0.001, abs(CateyeIntensity));
+            
+            // Calculate catseye effect strength
+            float cateyeStrength = linearstep(CateyeRadiusStart, CateyeRadiusEnd, distFromCenter) * sqrt(2.0) * CateyeIntensity; //negative value occludes discs from the other side
 
-			float cateyeMask = smoothstep(1.0, 0.98, length(normalizedOffset)); //tiny feather to avoid too harsh edges as cutting the neat bokeh sample pattern in half causes a jagged edge
-
+            cateyeOffset *= cateyeStrength * effectFactor;
+            normalizedOffset += cateyeOffset;
+            
+            // only apply the mask in the falloff
+            float cateyeMask = lerp(1.0, smoothstep(1.0, 0.98, length(normalizedOffset)), effectFactor); //tiny feather to avoid too harsh edges as cutting the neat bokeh sample pattern in half causes a jagged edge
+			
 			result.rgb *= cateyeMask;
 			result.a *= CateyeVignette ? 1 : cateyeMask; //if we want to produce vignetting, don't multiply alpha such that the resulting image is divided by the full framecount
 			
