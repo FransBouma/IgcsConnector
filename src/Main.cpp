@@ -96,15 +96,15 @@ static bool g_recordReshadeState = true;
 /// <returns>true if the allocation went OK, false otherwise. Returns true as well if this function was already called.</returns>
 bool connectFromCameraTools()
 {
-	if(nullptr != g_dataFromCameraToolsBuffer)
+	// Allocate buffer only if not already allocated
+	if(nullptr == g_dataFromCameraToolsBuffer)
 	{
-		// already connected
-		return true;
+		// malloc 8K buffers
+		g_dataFromCameraToolsBuffer = (LPBYTE)calloc(8 * 1024, 1);
 	}
-	// malloc 8K buffers
-	g_dataFromCameraToolsBuffer = (LPBYTE)calloc(8 * 1024, 1);
 
-	// connect back to the camera tools
+	// Always (re)connect to the camera tools to get fresh function pointers.
+	// This permits tools that can unload/load their dll again to work properly.
 	g_cameraToolsConnector.connectToCameraTools();
 
 	return g_dataFromCameraToolsBuffer!=nullptr;
