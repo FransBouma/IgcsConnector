@@ -64,6 +64,7 @@ void CameraToolsConnector::connectToCameraTools()
 			break;
 		}
 	}
+	CloseHandle(processHandle);
 	OverlayControl::addNotification(cameraToolsConnected() ? "Camera tools connected" : "No camera tools found");
 }
 
