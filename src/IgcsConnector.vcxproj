@@ -183,6 +183,7 @@
     <ClInclude Include="ConstantsEnums.h" />
     <ClInclude Include="DepthOfFieldController.h" />
     <ClInclude Include="EffectState.h" />
+    <ClInclude Include="Features.h" />
     <ClInclude Include="fpng.h" />
     <ClInclude Include="OverlayControl.h" />
     <ClInclude Include="ReshadeStateController.h" />
