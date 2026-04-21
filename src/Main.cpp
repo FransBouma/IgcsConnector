@@ -577,26 +577,49 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 							{
 								g_depthOfFieldController.setFrameWaitType((DepthOfFieldFrameWaitType)frameWaitType);
 							}
-							std::string toolTipText = "";
 							switch(frameWaitType)
 							{
 								case (int)DepthOfFieldFrameWaitType::Fast:
+								{
+									std::string toolTipText = "Use this value to define the blend delay.\nUsually 1 or 2. For engines with a long render pipeline you might to\nneed to increase this value. Increasing this value doesn't increase the render time.";
+									int numberOfFramesInFlight = g_depthOfFieldController.getNumberOfFramesInFlight();
+									changed = intDragWithButtons("Number of frames in flight", &numberOfFramesInFlight, 1, 1, 20, toolTipText.c_str());
+									if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+									{
+										ImGui::SetTooltip(toolTipText.c_str());
+									}
+									if(changed)
+									{
+										g_depthOfFieldController.setNumberOfFramesInFlight(numberOfFramesInFlight);
+									}
 									toolTipText = "Use this value to define the blend delay.\nUsually 1 or 2. For engines with a long render pipeline you might to\nneed to increase this value. Increasing this value doesn't increase the render time.";
-									break;
+									int numberOfFramesToWaitPerFrame = g_depthOfFieldController.getNumberOfFramesToWaitPerFrame();
+									changed = intDragWithButtons("Number of frames to wait per frame", &numberOfFramesToWaitPerFrame, 1, 0, 20, toolTipText.c_str());
+									if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+									{
+										ImGui::SetTooltip(toolTipText.c_str());
+									}
+									if(changed)
+									{
+										g_depthOfFieldController.setNumberOfFramesToWaitPerFrame(numberOfFramesToWaitPerFrame);
+									}
+								}
+								break;
 								case (int)DepthOfFieldFrameWaitType::Classic:
-									toolTipText = "Use this value to specify a delay during blending a frame.\nUsually 1 or higher but if the engine uses a lot of temporal effects\nyou might need to increase this value.\nIncreasing this value will increase the render time.";
-
-									break;
-							}
-							int numberOfFramesToWaitPerFrame = g_depthOfFieldController.getNumberOfFramesToWaitPerFrame();
-							changed = intDragWithButtons("Number of frames to wait per frame", &numberOfFramesToWaitPerFrame, 1, 1, 20, toolTipText.c_str());
-							if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
-							{
-								ImGui::SetTooltip(toolTipText.c_str());
-							}
-							if(changed)
-							{
-								g_depthOfFieldController.setNumberOfFramesToWaitPerFrame(numberOfFramesToWaitPerFrame);
+								{
+									std::string toolTipText = "Use this value to specify a delay during blending a frame.\nUsually 1 or higher but if the engine uses a lot of temporal effects\nyou might need to increase this value.\nIncreasing this value will increase the render time.";
+									int numberOfFramesToWaitPerFrame = g_depthOfFieldController.getNumberOfFramesToWaitPerFrame();
+									changed = intDragWithButtons("Number of frames to wait per frame", &numberOfFramesToWaitPerFrame, 1, 1, 20, toolTipText.c_str());
+									if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+									{
+										ImGui::SetTooltip(toolTipText.c_str());
+									}
+									if(changed)
+									{
+										g_depthOfFieldController.setNumberOfFramesToWaitPerFrame(numberOfFramesToWaitPerFrame);
+									}
+								}
+								break;
 							}
 
 							ImGui::SeparatorText("Magnifier");

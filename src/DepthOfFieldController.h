@@ -152,7 +152,15 @@ public:
 
 	// setters
 	void setNumberOfFramesToWaitPerFrame(int newValue) { _numberOfFramesToWait = IGCS::Utils::clampEx(newValue, 0, 20); }
-	void setFrameWaitType(DepthOfFieldFrameWaitType newValue) { _frameWaitType = newValue; }
+	void setNumberOfFramesInFlight(int newValue) { _numberOfFramesInFlight = IGCS::Utils::clampEx(newValue, 0, 20); }
+	void setFrameWaitType(DepthOfFieldFrameWaitType newValue)
+	{
+		_frameWaitType = newValue;
+		if(DepthOfFieldFrameWaitType::Classic== _frameWaitType && _numberOfFramesToWait<=0)
+		{
+			_numberOfFramesToWait = 1;
+		}
+	}
 	void setCatEyeRadiusStart(float newValue) { _catEyeRadiusStart = IGCS::Utils::clampEx(newValue, 0.0f, 1.0f); }
 	void setCatEyeRadiusEnd(float newValue) { _catEyeRadiusEnd = IGCS::Utils::clampEx(newValue, 0.0f, 1.0f); }
 	void setCatEyeBokehIntensity(float newValue) { _catEyeBokehIntensity = IGCS::Utils::clampEx(newValue, -1.0f, 1.0f); }
@@ -220,7 +228,7 @@ public:
 	}
 	void setHighlightBoostFactor(float newValue) { _highlightBoostFactor = IGCS::Utils::clampEx(newValue, 0.0f, 1.0f); }
 	void setHighlightGammaFactor(float newValue) { _highlightGammaFactor = IGCS::Utils::clampEx(newValue, 0.1f, 5.0f); }
-	void setRenderPaused(bool newValue) { _renderPaused = newValue; }
+	void setRenderPaused(bool newValue)	{ _renderPaused = newValue;	}
 	void setShowProgressBarAsOverlay(bool newValue) { _showProgressBarAsOverlay = newValue; }
 
 	// getters
@@ -233,6 +241,7 @@ public:
 	DepthOfFieldBlurType getBlurType() { return _blurType; }
 	int getNumberOfPointsInnermostRing() { return _numberOfPointsInnermostRing; }
 	int getNumberOfFramesToWaitPerFrame() { return _numberOfFramesToWait; }
+	int getNumberOfFramesInFlight() { return _numberOfFramesInFlight; }
 	bool getRenderPaused() { return _renderPaused; }
 	int getTotalNumberOfStepsToTake() { return _cameraSteps.size(); }
 	bool getShowProgressBarAsOverlay() { return _showProgressBarAsOverlay; }
@@ -356,10 +365,13 @@ private:
 	int _frameWaitCounter = 0;	// When 0 move the frameblend state to the next state, otherwise decrease
 	int _currentStepFrame = -1;		// < 0: no frame, >= 0 the current frame data to step the camera to, 0 based.
 	int _currentBlendFrame = -1;	// < 0: no frame, >= 0 the current frame data to blend, 0 based.
+	int _stepCounter = 0;			// used to determine when to step
+	int _blendCounter = 0;			// used to determine when to blend
 	bool _renderPaused = false;
 
 	int _numberOfFramesToRender = 0;
-	int _numberOfFramesToWait = 1;
+	int _numberOfFramesToWait = 0;			// default for fast is 0. For classic it's 1, but we'll set it to a proper value when the value is set. 
+	int _numberOfFramesInFlight = 1;		// default for fast is 1, classic doesn't use this. 
 	int _quality;		// # of circles
 	int _numberOfPointsInnermostRing;
 	float _ringAngleOffset = 0.0f;

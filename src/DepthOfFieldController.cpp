@@ -310,21 +310,14 @@ void DepthOfFieldController::performRenderFrameSetupWork()
 	{
 		const auto& currentStepFrameData = _cameraSteps[_currentStepFrame];
 		_cameraToolsConnector.moveCameraMultishot(currentStepFrameData.xDelta, currentStepFrameData.yDelta, 0.0f, true);
+		_currentStepFrame++;
+		_stepCounter=_numberOfFramesToWait;
 	}
 	if(_currentBlendFrame >= 0)
 	{
 		const auto& currentBlendFrameData = _cameraSteps[_currentBlendFrame];
 		_xAlignmentDelta = currentBlendFrameData.xAlignmentDelta;
 		_yAlignmentDelta = currentBlendFrameData.yAlignmentDelta;
-		switch(_frameWaitType)
-		{
-			case DepthOfFieldFrameWaitType::Fast:
-				_frameWaitCounter = 0;
-				break;
-			case DepthOfFieldFrameWaitType::Classic:
-				_frameWaitCounter = _numberOfFramesToWait;
-				break;
-		}
 		_blendFactor = 1.0f / (static_cast<float>(_currentBlendFrame) + 1.0f);		// frame start at 0 so +1, to get 1/1=100% blend factor for first frame
 
 		//since the lerp blending implicitly already divides the sum by N, we must not do it again, so compensate
@@ -333,8 +326,8 @@ void DepthOfFieldController::performRenderFrameSetupWork()
 		_sampleWeightRGB[1] = currentBlendFrameData.sampleWeightRGB[1] * numSamples;
 		_sampleWeightRGB[2] = currentBlendFrameData.sampleWeightRGB[2] * numSamples;
 	}
-	// Set the framestate to wait so the counter will take effect.
-	_renderFrameState = DepthOfFieldRenderFrameState::FrameWait;
+	// Set the framestate to rendering frames, to make sure we're proceeding. 
+	_renderFrameState = DepthOfFieldRenderFrameState::RenderingFrames;
 }
 
 
@@ -348,30 +341,31 @@ void DepthOfFieldController::handlePresentBeforeReshadeEffects()
 	switch(_renderFrameState)
 	{
 		case DepthOfFieldRenderFrameState::Off:
-		case DepthOfFieldRenderFrameState::FrameBlending:
 		case DepthOfFieldRenderFrameState::Start:
 			// no-op
 			break;
-		case DepthOfFieldRenderFrameState::FrameWait:
+		case DepthOfFieldRenderFrameState::RenderingFrames:
 			{
-				// check if counter is 0. If so, switch to next state, if not, decrease and do nothing
-				if(_frameWaitCounter <= 0)
+				if(!_renderPaused)
 				{
-					_frameWaitCounter = 0;
-					if(_currentBlendFrame >= 0)
+					// in this before effects handler, we check if we have to blend. We do this with the blend counter. 
+					// check if counter is 0. If so, switch to next state, if not, decrease and do nothing
+					if(_blendCounter <= 0)
 					{
-						// Ready to blend. As we're currently before the reshade effects are handled but after the frame has been drawn by the engine
-						// we can set blendFrame to true here and the shader will blend the current framebuffer this frame.
-						// This works because after this method, the uniforms are written to the shader, so the shader will pick the new value up
-						// when it's being drawn 
-						_blendFrame = true;
+						_blendCounter = 0;
+						if(_currentBlendFrame >= 0)
+						{
+							// Ready to blend. As we're currently before the reshade effects are handled but after the frame has been drawn by the engine
+							// we can set blendFrame to true here and the shader will blend the current framebuffer this frame.
+							// This works because after this method, the uniforms are written to the shader, so the shader will pick the new value up
+							// when it's being drawn 
+							_blendFrame = true;
+						}
 					}
-					// Setting the state to blending as we're blending after this method. The handling of this event is done in handlePresentAfterReshadeEffects
-					_renderFrameState = DepthOfFieldRenderFrameState::FrameBlending;
-				}
-				else
-				{
-					_frameWaitCounter--;
+					else
+					{
+						_blendCounter--;
+					}
 				}
 			}
 			break;
@@ -389,23 +383,27 @@ void DepthOfFieldController::handlePresentAfterReshadeEffects()
 	switch(_renderFrameState)
 	{
 		case DepthOfFieldRenderFrameState::Off:
-		case DepthOfFieldRenderFrameState::FrameWait:
 			// no-op
 			break;
 		case DepthOfFieldRenderFrameState::Start:
 			// start state of the whole process. Only arriving here once per render session.
 			performRenderFrameSetupWork();
 			break;
-		case DepthOfFieldRenderFrameState::FrameBlending:
+		case DepthOfFieldRenderFrameState::RenderingFrames:
 			{
-				// Blending work has taken place, we're now done with that as the shader has run. We switch it off by resetting the variable.
-				// This variable is written to the shader at the end of the handler called before the reshade effects will be rendered (reshadeBeginEffectsCalled), so
-				// it will take effect then. (the shader isn't run before that point so it's ok).
-				_blendFrame = false;
+				// In this after effects handler, we check if we have blended a frame, and if so, we move the pointer. We also 
+				// detetermine if we have to step the camera. 
 				if(!_renderPaused)
 				{
-					_currentStepFrame++;
-					_currentBlendFrame++;
+					if(_blendFrame)
+					{
+						// Blending work has taken place, we're now done with that as the shader has run. We switch it off by resetting the variable.
+						// This variable is written to the shader at the end of the handler called before the reshade effects will be rendered (reshadeBeginEffectsCalled), so
+						// it will take effect then. (the shader isn't run before that point so it's ok).
+						_blendFrame = false;
+						_currentBlendFrame++;
+						_blendCounter = _numberOfFramesToWait;
+					}
 					if(_currentBlendFrame >= _numberOfFramesToRender)
 					{
 						// we're done rendering
@@ -415,8 +413,16 @@ void DepthOfFieldController::handlePresentAfterReshadeEffects()
 					}
 					else
 					{
-						// back to setup for the next frame
-						performRenderFrameSetupWork();
+						if(_stepCounter <= 0)
+						{
+							_stepCounter = 0;
+							// back to setup for the next frame
+							performRenderFrameSetupWork();
+						}
+						else
+						{
+							_stepCounter--;
+						}
 					}
 				}
 			}
@@ -741,17 +747,23 @@ void DepthOfFieldController::startRender(reshade::api::effect_runtime* runtime)
 	_blendFrame = false;
 	_blendFactor = 0.0f;
 	_currentStepFrame = 0;
+	_currentBlendFrame = 0;
+	_stepCounter = 0;			// as we start immediately with a step
 	switch(_frameWaitType)
 	{
 		case DepthOfFieldFrameWaitType::Classic:
-			_currentBlendFrame = 0;
+			_numberOfFramesToWait = std::max(_numberOfFramesToWait, 1);		// minimal 1 for classic
+			_blendCounter = _numberOfFramesToWait;
 			break;
 		case DepthOfFieldFrameWaitType::Fast:
-			_currentBlendFrame = 0-_numberOfFramesToWait;
+			_numberOfFramesToWait = std::max(_numberOfFramesToWait, 0);		// minimal 0 for fast
+			_numberOfFramesInFlight = std::max(_numberOfFramesInFlight, 1);	// minimal 1
+			_blendCounter = _numberOfFramesInFlight + _numberOfFramesToWait;
 			break;
 	}
 	_numberOfFramesToRender = _cameraSteps.size();
 	_renderFrameState = DepthOfFieldRenderFrameState::Start;
+	_frameWaitCounter = _numberOfFramesToWait;
 	_state = DepthOfFieldControllerState::Rendering;
 }
 

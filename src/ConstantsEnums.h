@@ -95,8 +95,7 @@ enum class DepthOfFieldRenderFrameState : int
 {
 	Off,			// no work
 	Start,			// start state of the whole process. 
-	FrameWait,		// Waiting for the camera to have moved after setup. This waiting is done with a counter
-	FrameBlending,	// Currently in the blending operation. 
+	RenderingFrames,// Rendering frames, this state is used to perform work in the before effects and after effects event handlers. 
 };
 
 
