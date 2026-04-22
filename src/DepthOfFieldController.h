@@ -156,9 +156,16 @@ public:
 	void setFrameWaitType(DepthOfFieldFrameWaitType newValue)
 	{
 		_frameWaitType = newValue;
-		if(DepthOfFieldFrameWaitType::Classic== _frameWaitType && _numberOfFramesToWait<=0)
+		switch(_frameWaitType)
 		{
-			_numberOfFramesToWait = 1;
+			case DepthOfFieldFrameWaitType::Fast:
+				// moving from classic to fl
+				_numberOfFramesInFlight = _numberOfFramesToWait;
+				_numberOfFramesToWait = 0;
+				break;
+			case DepthOfFieldFrameWaitType::Classic:
+				_numberOfFramesToWait = std::max(1, _numberOfFramesToWait);
+				break;
 		}
 	}
 	void setCatEyeRadiusStart(float newValue) { _catEyeRadiusStart = IGCS::Utils::clampEx(newValue, 0.0f, 1.0f); }
@@ -352,7 +359,7 @@ private:
 	float _sampleWeightRGB[3] = {1.0f, 1.0f, 1.0f};
 	DepthOfFieldCAType _caType = DepthOfFieldCAType::RGB;
 	float _catEyeRadiusStart = 0.2f;
-	float _catEyeRadiusEnd = 0.7;
+	float _catEyeRadiusEnd = 0.7f;
 	float _catEyeBokehIntensity = 0.0f;
 	bool _addCatEyeVignette = false;
 

@@ -160,6 +160,7 @@ void DepthOfFieldController::loadIniFileData(CDataFile& iniFile)
 	loadIntFromIni(iniFile, "Quality", &_quality);
 	loadIntFromIni(iniFile, "NumberOfPointsInnermostRing", &_numberOfPointsInnermostRing);
 	loadIntFromIni(iniFile, "NumberOfFramesToWaitPerFrame", &_numberOfFramesToWait);
+	loadIntFromIni(iniFile, "NumberOfFramesInFlight", &_numberOfFramesInFlight);
 	loadBoolFromIni(iniFile, "ShowProgressBarAsOverlay", &_showProgressBarAsOverlay, true);
 	loadBoolFromIni(iniFile, "AddCatEyeVignette", &_addCatEyeVignette, false);
 	loadFloatFromIni(iniFile, "CatEyeRadiusStart", &_catEyeRadiusStart);
@@ -194,6 +195,7 @@ void DepthOfFieldController::saveIniFileData(CDataFile& iniFile)
 	iniFile.SetInt("Quality", _quality, "", "DepthOfField");
 	iniFile.SetInt("NumberOfPointsInnermostRing", _numberOfPointsInnermostRing, "", "DepthOfField");
 	iniFile.SetInt("NumberOfFramesToWaitPerFrame", _numberOfFramesToWait, "", "DepthOfField");
+	iniFile.SetInt("NumberOfFramesInFlight", _numberOfFramesInFlight, "", "DepthOfField");
 	iniFile.SetBool("ShowProgressBarAsOverlay", _showProgressBarAsOverlay, "", "DepthOfField");
 	iniFile.SetInt("BlurType", (int)_blurType, "", "DepthOfField");
 	iniFile.SetInt("CAType", (int)_caType, "", "DepthOfField");
@@ -321,7 +323,7 @@ void DepthOfFieldController::performRenderFrameSetupWork()
 		_blendFactor = 1.0f / (static_cast<float>(_currentBlendFrame) + 1.0f);		// frame start at 0 so +1, to get 1/1=100% blend factor for first frame
 
 		//since the lerp blending implicitly already divides the sum by N, we must not do it again, so compensate
-		const float numSamples = _cameraSteps.size();
+		const float numSamples = static_cast<float>(_cameraSteps.size());
 		_sampleWeightRGB[0] = currentBlendFrameData.sampleWeightRGB[0] * numSamples;
 		_sampleWeightRGB[1] = currentBlendFrameData.sampleWeightRGB[1] * numSamples;
 		_sampleWeightRGB[2] = currentBlendFrameData.sampleWeightRGB[2] * numSamples;
@@ -393,25 +395,25 @@ void DepthOfFieldController::handlePresentAfterReshadeEffects()
 			{
 				// In this after effects handler, we check if we have blended a frame, and if so, we move the pointer. We also 
 				// detetermine if we have to step the camera. 
-				if(!_renderPaused)
+				if(_blendFrame)
 				{
-					if(_blendFrame)
-					{
-						// Blending work has taken place, we're now done with that as the shader has run. We switch it off by resetting the variable.
-						// This variable is written to the shader at the end of the handler called before the reshade effects will be rendered (reshadeBeginEffectsCalled), so
-						// it will take effect then. (the shader isn't run before that point so it's ok).
-						_blendFrame = false;
-						_currentBlendFrame++;
-						_blendCounter = _numberOfFramesToWait;
-					}
-					if(_currentBlendFrame >= _numberOfFramesToRender)
-					{
-						// we're done rendering
-						_renderFrameState = DepthOfFieldRenderFrameState::Off;
-						_state = DepthOfFieldControllerState::Done;
-						reshade::log::message(reshade::log::level::info, "Dof render session completed");
-					}
-					else
+					// Blending work has taken place, we're now done with that as the shader has run. We switch it off by resetting the variable.
+					// This variable is written to the shader at the end of the handler called before the reshade effects will be rendered (reshadeBeginEffectsCalled), so
+					// it will take effect then. (the shader isn't run before that point so it's ok).
+					_blendFrame = false;
+					_currentBlendFrame++;
+					_blendCounter = _numberOfFramesToWait;
+				}
+				if(_currentBlendFrame >= _numberOfFramesToRender)
+				{
+					// we're done rendering
+					_renderFrameState = DepthOfFieldRenderFrameState::Off;
+					_state = DepthOfFieldControllerState::Done;
+					reshade::log::message(reshade::log::level::info, "Dof render session completed");
+				}
+				else
+				{
+					if(!_renderPaused)
 					{
 						if(_stepCounter <= 0)
 						{
@@ -456,7 +458,7 @@ float DepthOfFieldController::calculateChannelDimFactor(float angleSegment, floa
 	// using Iq's parabola using k==0.5, see: https://www.desmos.com/calculator/aszway25gw and https://iquilezles.org/articles/functions/
 	const float segmentSize = 1.0f / (float)(numberOfSegments ==0 ? 1 : numberOfSegments);
 	const float angleToSegmentNormalized = IGCS::Utils::clampEx(angleSegment - segmentAngleMin, 0.0f, segmentSize) / segmentSize;
-	return std::pow(4.0f * angleToSegmentNormalized * (1.0 - angleToSegmentNormalized), 0.5f);
+	return std::pow(4.0f * angleToSegmentNormalized * (1.0f - angleToSegmentNormalized), 0.5f);
 }
 
 
@@ -756,9 +758,13 @@ void DepthOfFieldController::startRender(reshade::api::effect_runtime* runtime)
 			_blendCounter = _numberOfFramesToWait;
 			break;
 		case DepthOfFieldFrameWaitType::Fast:
+		{
 			_numberOfFramesToWait = std::max(_numberOfFramesToWait, 0);		// minimal 0 for fast
-			_numberOfFramesInFlight = std::max(_numberOfFramesInFlight, 1);	// minimal 1
-			_blendCounter = _numberOfFramesInFlight + _numberOfFramesToWait;
+			// subtract 1 from the value, clamp it at 0. We subtract 1 because with fixed tools, the step data is written to the game's memory the same frame, which requires 0 frames in flight
+			// for a game which has 1 buffer
+			int numberOfFramesInFlightToUse = std::max(_numberOfFramesInFlight-1, 0);	// minimal 0
+			_blendCounter = numberOfFramesInFlightToUse + _numberOfFramesToWait;
+		}
 			break;
 	}
 	_numberOfFramesToRender = _cameraSteps.size();
@@ -912,7 +918,7 @@ void DepthOfFieldController::loadIntFromIni(CDataFile& iniFile, const std::strin
 	{
 		return;
 	}
-	const float value = iniFile.GetInt(key, "DepthOfField");
+	const int value = iniFile.GetInt(key, "DepthOfField");
 	if(value != INT_MIN)
 	{
 		*toWriteTo = value;
@@ -928,7 +934,7 @@ void DepthOfFieldController::loadBoolFromIni(CDataFile& iniFile, const std::stri
 	// a little inefficient, but getkey is protected
 	const auto boolAsString = iniFile.GetValue(key, "DepthOfField");
 	bool valueToUse = defaultValue;
-	if(boolAsString.length()>0)
+	if(!boolAsString.empty())
 	{
 		valueToUse = iniFile.GetBool(key, "DepthOfField");
 	}

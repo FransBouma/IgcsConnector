@@ -401,7 +401,7 @@ static bool intDragWithButtons(const char* label, int* value, int speed, int min
 	ImGui::PushID(label);
 
 	ImGui::SetNextItemWidth(ImGui::CalcItemWidth() - (2 * (button_spacing + button_size)));
-	bool toReturn = ImGui::DragInt("##v", value, speed, min, max);
+	bool toReturn = ImGui::DragInt("##v", value, static_cast<float>(speed), min, max);
 	if(nullptr!=toolTip && ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
 	{
 		ImGui::SetTooltip(toolTip);
@@ -571,7 +571,7 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 							changed = ImGui::Combo("Frame wait type", &frameWaitType, "Fast\0Classic (slower)\0\0");
 							if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
 							{
-								ImGui::SetTooltip("Fast is using a system which renders at full frame rate.\nYou need to pick the number of frames to wait value that gives a sharp focus area.\n\nClassic is slower, it uses the number of frames to wait to delay the next frame\nso the higher the value, the slower the rendering. Classic is more reliable to have sharp focus areas.");
+								ImGui::SetTooltip("Fast is a system which can render at full framerate, Classic is slower and is mainly used as a fallback\nfor the situations when Fast leads to blurry images. It's recommended to start with 'Fast' and only use\n'Classic' if you can't find framewait values for Fast that lead to sharp in-focus areas in your image.");
 							}
 							if(changed)
 							{
@@ -581,7 +581,7 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 							{
 								case (int)DepthOfFieldFrameWaitType::Fast:
 								{
-									std::string toolTipText = "Use this value to define the blend delay.\nUsually 1 or 2. For engines with a long render pipeline you might to\nneed to increase this value. Increasing this value doesn't increase the render time.";
+									std::string toolTipText = "Use this value to define the number of frames the engine has 'in flight' (so the number of frames\nit is working on at the same time). This is usually 1 or 2 but for engines with a long render\npipeline you might to need to increase this value to a higher value, e.g. 4 or 5.\nIncreasing this value doesn't increase the render time.";
 									int numberOfFramesInFlight = g_depthOfFieldController.getNumberOfFramesInFlight();
 									changed = intDragWithButtons("Number of frames in flight", &numberOfFramesInFlight, 1, 1, 20, toolTipText.c_str());
 									if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
@@ -592,7 +592,7 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 									{
 										g_depthOfFieldController.setNumberOfFramesInFlight(numberOfFramesInFlight);
 									}
-									toolTipText = "Use this value to define the blend delay.\nUsually 1 or 2. For engines with a long render pipeline you might to\nneed to increase this value. Increasing this value doesn't increase the render time.";
+									toolTipText = "Use this value to define a delay before the frame is blended. For full frame rate rendering, set this to 0.\nSetting this to 1 halfs the framerate, setting it to 2 makes the rendering speed become 1/3rd of full framerate etc.\nSetting this value to 1 will make IGCSDOF wait for 1 frame before it'll blend the rendered result which can\nlead to sharper in-focus areas if the game has some ghosting or e.g. blurry TAA. Some games need 1-2 frames to\nsettle after camera movement, to get rid of e.g. TAA ghosting. If that's the case, this value can help fix that.\nDo realize that if you set this value higher than 'Number of frames in flight', you effectively are using 'Classic'.";
 									int numberOfFramesToWaitPerFrame = g_depthOfFieldController.getNumberOfFramesToWaitPerFrame();
 									changed = intDragWithButtons("Number of frames to wait per frame", &numberOfFramesToWaitPerFrame, 1, 0, 20, toolTipText.c_str());
 									if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
@@ -602,6 +602,10 @@ static void displaySettings(reshade::api::effect_runtime* runtime)
 									if(changed)
 									{
 										g_depthOfFieldController.setNumberOfFramesToWaitPerFrame(numberOfFramesToWaitPerFrame);
+									}
+									if(ImGui::CollapsingHeader("Expand for setup help with 'Fast'"))
+									{
+										ImGui::TextWrapped("To get started with setting up 'Fast', it's best to do the following. Set 'Number of frames to wait per frame' to 0 and 'Number of frames in flight' to 1 and start a rendering. If you get a blurry in-focus area right from the start, click Cancel to stop the rendering and increase 'Number of frames in flight' to a higher number, e.g. 2 or 3 and try again, till you get a non-blurry in-focus area. You can then fine-tune sharpness if needed, with increasing 'Number of frames to wait per frame' to a higher value, like 1 or 2. However in most cases, leaving 'Number of frames to wait per frame' to 0 is sufficient.");
 									}
 								}
 								break;
@@ -1071,7 +1075,7 @@ void sendCameraToolsDataToUniforms(effect_runtime* runtime)
 					auto height = static_cast<float>(description.texture.height);
 					if(height<DirectX::g_XMEpsilon.f[0])
 					{
-						height = 0.1;
+						height = 0.1f;
 					}
 					const auto aspectRatio = width / height;
 					const auto projectionMatrixLH = DirectX::XMMatrixPerspectiveFovLH(IGCS::Utils::degreesToRadians(cameraData->fov), aspectRatio, 0.1f, 10000.0f);
